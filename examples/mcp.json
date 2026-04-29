@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "codex-vm-bridge": {
+      "command": "/absolute/path/to/codex-vm-bridge/bin/codex-vm-bridge",
+      "args": ["mcp"]
+    }
+  }
+}

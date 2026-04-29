@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+exec "/Users/zimengx/Documents/New project 9/codex-vm-bridge/bin/codex-vm-bridge" "$@"

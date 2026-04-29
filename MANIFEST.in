@@ -1,0 +1,11 @@
+include README.md
+include LICENSE
+include requirements-vnc.txt
+recursive-include bin *
+recursive-include guest *.swift *.py
+recursive-include references *.md
+recursive-include examples *.json *.sh
+recursive-include scripts *.sh
+recursive-include skills *
+global-exclude __pycache__/*
+global-exclude *.py[cod]
