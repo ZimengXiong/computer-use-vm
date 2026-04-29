@@ -27,31 +27,11 @@ Codex
               -> screencapture, CGEvent, AXUIElement, NSPasteboard
 ```
 
-The fastest path is the in-guest agent. VNC is only a fallback for first-run permission approval and visual recovery.
-
-## Requirements
-
-- Apple Silicon Mac
-- macOS host with Homebrew
-- Tart for the recommended backend
-- Xcode Command Line Tools in the guest for compiling the helper
-- Screen Recording and Accessibility grants inside the prepared VM
-
 Install Tart:
 
 ```bash
 brew install cirruslabs/cli/tart
 ```
-
-Optional VNC fallback dependency:
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements-vnc.txt
-```
-
-## Quick Start
-
 From the repository root:
 
 ```bash
@@ -86,9 +66,9 @@ Then use the guest agent:
 ./bin/codex-vm-bridge agent ax-set-value --host <guest-ip> --id <element-id> --value "text"
 ```
 
-## Computer Use Parity
+## VS. Computer Use
 
-Native Codex Computer Use is fast because it directly sees host pixels and the host accessibility tree. This bridge closes the practical gap by exposing the same kinds of primitives from inside the VM:
+Native Codex Computer Use is fast because it directly sees host pixels and the host accessibility tree, we try to do the same, e.g.
 
 - `screenshot`: current guest pixels
 - `ax-tree`: focused app/window semantic tree
@@ -126,8 +106,3 @@ mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
 cp -R skills/codex-vm-computer "${CODEX_HOME:-$HOME/.codex}/skills/"
 ```
 
-## Notes
-
-- `codex-vm-computer-base` is a local Tart VM name, not a repository artifact.
-- Apple does not allow normal userland code to silently grant Screen Recording. First-run approval must happen in the VM UI or through real MDM policy.
-- UTM support exists, but Tart is the preferred backend for disposable macOS VM workflows.
