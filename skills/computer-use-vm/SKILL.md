@@ -11,7 +11,7 @@ Use `computer-use-vm` or this skill's wrapper to control disposable VMs.
 
 Each machine builds its own base locally. That keeps Apple software, privacy grants, user state, caches, and machine-specific data out of GitHub, npm, releases, and Hugging Face.
 
-If `computer-use-vm-base` is missing, create it locally with the commands in this skill. If macOS privacy prompts appear inside the guest, ask the user to approve Screen Recording and Accessibility for the guest agent/helper.
+If `computer-use-vm-base` is missing, create it locally with the commands in this skill. Before first-time setup, tell the user they will need to VNC into the VM and approve macOS Screen Recording and Accessibility prompts for the guest agent/helper. Do not present first-time setup as fully unattended.
 
 ## Default Workflow
 
@@ -32,6 +32,8 @@ computer-use-vm clone computer-use-vm-base <task-vm>
 This base has the guest agent installed as a user LaunchAgent and has the required macOS privacy grants for native screenshots.
 
 4. Prepare a raw Tart base image only if `computer-use-vm-base` does not exist:
+
+Before running this setup, tell the user: "The first setup needs a VNC session into the VM so you can approve macOS Screen Recording and Accessibility permissions for the guest agent/helper."
 
 ```bash
 computer-use-vm prepare-base computer-use-tahoe-base

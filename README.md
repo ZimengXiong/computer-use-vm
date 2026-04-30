@@ -6,6 +6,8 @@ Computer Use VM gives coding agents a VM they can use for terminal and GUI work 
 
 It does not ship a macOS base image. Each machine builds its own base locally. That keeps Apple software, privacy grants, user state, caches, and machine-specific data out of GitHub, npm, releases, and Hugging Face.
 
+First-time setup is not fully unattended. The user needs to VNC into the VM once to approve macOS Screen Recording and Accessibility prompts for the guest agent/helper.
+
 ## Install
 
 Install the skill with the open skills CLI:
