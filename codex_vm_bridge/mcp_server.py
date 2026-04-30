@@ -12,12 +12,14 @@ def tool_schema() -> list[dict[str, Any]]:
     return [
         {"name": "vm_diagnose", "description": "Report local VM bridge backend availability and permission diagnostics.", "inputSchema": {"type": "object", "properties": {}}},
         {"name": "vm_list", "description": "List VMs from Tart or UTM.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}}}},
-        {"name": "vm_start", "description": "Start a VM in headless/hidden mode by default, or VNC/visible mode for screen introspection.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}, "visible": {"type": "boolean"}, "vnc": {"type": "boolean"}, "disposable": {"type": "boolean"}}, "required": ["vm"]}},
+        {"name": "vm_start", "description": "Start a VM in headless/hidden mode by default, or VNC/visible mode for screen introspection. Tart supports directory shares through mounts, passed directly to tart run --dir.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}, "visible": {"type": "boolean"}, "vnc": {"type": "boolean"}, "disposable": {"type": "boolean"}, "mounts": {"type": "array", "items": {"type": "string"}}}, "required": ["vm"]}},
         {"name": "vm_stop", "description": "Stop a VM.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}}, "required": ["vm"]}},
         {"name": "vm_clone", "description": "Clone a source VM to a named working VM.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "source": {"type": "string"}, "name": {"type": "string"}}, "required": ["source", "name"]}},
         {"name": "vm_prepare_base", "description": "Clone the public Cirrus macOS Tahoe Tart base image into a local base VM.", "inputSchema": {"type": "object", "properties": {"name": {"type": "string", "default": "codex-tahoe-base"}, "image": {"type": "string", "default": "ghcr.io/cirruslabs/macos-tahoe-base:latest"}}}},
         {"name": "vm_delete", "description": "Delete a VM.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}}, "required": ["vm"]}},
         {"name": "vm_ip", "description": "Return known IP addresses for a VM.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}}, "required": ["vm"]}},
+        {"name": "vm_exec", "description": "Run a terminal command inside a VM. Pass argv for direct execution, or command for a shell command run via zsh -lc.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}, "argv": {"type": "array", "items": {"type": "string"}}, "command": {"type": "string"}}, "required": ["vm"]}},
+        {"name": "vm_push", "description": "Copy a host file or directory into a VM. Prefer Tart mounts on vm_start for large workspaces.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}, "local_path": {"type": "string"}, "remote_path": {"type": "string"}}, "required": ["vm", "local_path", "remote_path"]}},
         {"name": "vm_start_agent", "description": "Start the installed in-guest HTTP computer-use agent.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}, "remote_dir": {"type": "string", "default": "/Users/admin/codex-vm-agent"}, "host": {"type": "string", "default": "0.0.0.0"}, "port": {"type": "integer", "default": 7042}}, "required": ["vm"]}},
         {"name": "vm_stop_agent", "description": "Stop the installed in-guest HTTP computer-use agent.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}}, "required": ["vm"]}},
         {"name": "agent_snapshot", "description": "Return guest screen metadata and screenshot base64 from the in-guest agent.", "inputSchema": {"type": "object", "properties": {"host": {"type": "string"}, "port": {"type": "integer", "default": 7042}}, "required": ["host"]}},
@@ -54,7 +56,7 @@ def call_tool(name: str, args: dict[str, Any]) -> Any:
     if name == "vm_list":
         return get_backend(args.get("backend")).list()
     if name == "vm_start":
-        return get_backend(args.get("backend")).start(args["vm"], headless=not args.get("visible", False) and not args.get("vnc", False), disposable=args.get("disposable", False), vnc=args.get("vnc", False))
+        return get_backend(args.get("backend")).start(args["vm"], headless=not args.get("visible", False) and not args.get("vnc", False), disposable=args.get("disposable", False), vnc=args.get("vnc", False), mounts=args.get("mounts") or [])
     if name == "vm_stop":
         return get_backend(args.get("backend")).stop(args["vm"])
     if name == "vm_clone":
@@ -66,6 +68,17 @@ def call_tool(name: str, args: dict[str, Any]) -> Any:
         return get_backend(args.get("backend")).delete(args["vm"])
     if name == "vm_ip":
         return get_backend(args.get("backend")).ip(args["vm"])
+    if name == "vm_exec":
+        if args.get("argv"):
+            argv = [str(part) for part in args["argv"]]
+        elif args.get("command"):
+            argv = ["zsh", "-lc", str(args["command"])]
+        else:
+            raise ValueError("vm_exec requires argv or command")
+        result = get_backend(args.get("backend")).exec(args["vm"], argv)
+        return {"returncode": result.returncode, "stdout": result.stdout, "stderr": result.stderr}
+    if name == "vm_push":
+        return get_backend(args.get("backend")).push(args["vm"], args["local_path"], args["remote_path"])
     if name == "vm_start_agent":
         return start_guest_agent(args["vm"], args.get("backend"), args.get("remote_dir", "/Users/admin/codex-vm-agent"), args.get("host", "0.0.0.0"), int(args.get("port", 7042)))
     if name == "vm_stop_agent":

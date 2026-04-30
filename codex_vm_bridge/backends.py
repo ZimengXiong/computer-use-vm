@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import tarfile
 from dataclasses import dataclass
 from typing import Any
 
@@ -30,15 +31,18 @@ class CommandResult:
         return self
 
 
-def run(argv: list[str], *, input_text: str | None = None, timeout: int = 120) -> CommandResult:
+def run(argv: list[str], *, input_text: str | bytes | None = None, timeout: int = 120) -> CommandResult:
+    text_mode = not isinstance(input_text, bytes)
     proc = subprocess.run(
         argv,
         input=input_text,
-        text=True,
+        text=text_mode,
         capture_output=True,
         timeout=timeout,
     )
-    return CommandResult(argv, proc.returncode, proc.stdout, proc.stderr)
+    stdout = proc.stdout if isinstance(proc.stdout, str) else proc.stdout.decode("utf-8", "replace")
+    stderr = proc.stderr if isinstance(proc.stderr, str) else proc.stderr.decode("utf-8", "replace")
+    return CommandResult(argv, proc.returncode, stdout, stderr)
 
 
 def which(name: str) -> str | None:
@@ -57,7 +61,15 @@ class Backend:
     def list(self) -> list[dict[str, Any]]:
         raise NotImplementedError
 
-    def start(self, vm: str, *, headless: bool = True, disposable: bool = False, vnc: bool = False) -> dict[str, Any]:
+    def start(
+        self,
+        vm: str,
+        *,
+        headless: bool = True,
+        disposable: bool = False,
+        vnc: bool = False,
+        mounts: list[str] | None = None,
+    ) -> dict[str, Any]:
         raise NotImplementedError
 
     def stop(self, vm: str) -> dict[str, Any]:
@@ -72,7 +84,7 @@ class Backend:
     def ip(self, vm: str) -> list[str]:
         raise NotImplementedError
 
-    def exec(self, vm: str, cmd: list[str], *, input_text: str | None = None) -> CommandResult:
+    def exec(self, vm: str, cmd: list[str], *, input_text: str | bytes | None = None) -> CommandResult:
         raise NotImplementedError
 
     def push(self, vm: str, local_path: str, remote_path: str) -> dict[str, Any]:
@@ -109,12 +121,22 @@ class TartBackend(Backend):
             return data
         return []
 
-    def start(self, vm: str, *, headless: bool = True, disposable: bool = False, vnc: bool = False) -> dict[str, Any]:
+    def start(
+        self,
+        vm: str,
+        *,
+        headless: bool = True,
+        disposable: bool = False,
+        vnc: bool = False,
+        mounts: list[str] | None = None,
+    ) -> dict[str, Any]:
         args = ["run"]
         if vnc:
             args.append("--vnc")
         elif headless:
             args.append("--no-graphics")
+        for mount in mounts or []:
+            args.extend(["--dir", mount])
         if disposable:
             # Tart's disposable behavior is modeled by clone/delete; keep this explicit.
             pass
@@ -124,7 +146,7 @@ class TartBackend(Backend):
         log_path = os.path.join(tempfile.gettempdir(), f"codex-vm-bridge-tart-{re.sub(r'[^A-Za-z0-9_.-]', '_', vm)}.log")
         log = open(log_path, "ab")
         proc = subprocess.Popen([self.bin, *args], stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
-        return {"backend": self.name, "vm": vm, "started": True, "headless": headless, "vnc": vnc, "pid": proc.pid, "log": log_path}
+        return {"backend": self.name, "vm": vm, "started": True, "headless": headless, "vnc": vnc, "mounts": mounts or [], "pid": proc.pid, "log": log_path}
 
     def stop(self, vm: str) -> dict[str, Any]:
         res = self._run(["stop", vm]).check()
@@ -146,7 +168,7 @@ class TartBackend(Backend):
         res = self._run(["ip", vm]).check()
         return [line.strip() for line in res.stdout.splitlines() if line.strip()]
 
-    def exec(self, vm: str, cmd: list[str], *, input_text: str | None = None) -> CommandResult:
+    def exec(self, vm: str, cmd: list[str], *, input_text: str | bytes | None = None) -> CommandResult:
         if not self.bin:
             raise BridgeError("tart is not installed")
         args = ["exec"]
@@ -155,10 +177,20 @@ class TartBackend(Backend):
         return run([self.bin, *args, vm, *cmd], input_text=input_text)
 
     def push(self, vm: str, local_path: str, remote_path: str) -> dict[str, Any]:
-        with open(local_path, "r", encoding="utf-8") as handle:
-            data = handle.read()
-        quoted = remote_path.replace("'", "'\\''")
-        res = self.exec(vm, ["sh", "-lc", f"cat > '{quoted}'"], input_text=data).check()
+        local_path = os.path.abspath(os.path.expanduser(local_path))
+        if not os.path.exists(local_path):
+            raise BridgeError(f"local path does not exist: {local_path}")
+        remote_parent = os.path.dirname(remote_path.rstrip("/")) or "."
+        remote_name = os.path.basename(remote_path.rstrip("/"))
+        if not remote_name:
+            raise BridgeError("remote path must name a file or directory")
+        with tempfile.NamedTemporaryFile(suffix=".tar") as archive:
+            with tarfile.open(archive.name, "w") as tar:
+                tar.add(local_path, arcname=remote_name)
+            archive.seek(0)
+            data = archive.read()
+        quoted_parent = remote_parent.replace("'", "'\\''")
+        res = self.exec(vm, ["sh", "-lc", f"mkdir -p '{quoted_parent}' && tar -xf - -C '{quoted_parent}'"], input_text=data).check()
         return {"backend": self.name, "vm": vm, "local": local_path, "remote": remote_path, "stdout": res.stdout}
 
 
@@ -196,7 +228,17 @@ class UTMBackend(Backend):
                 rows.append(match.groupdict())
         return rows
 
-    def start(self, vm: str, *, headless: bool = True, disposable: bool = False, vnc: bool = False) -> dict[str, Any]:
+    def start(
+        self,
+        vm: str,
+        *,
+        headless: bool = True,
+        disposable: bool = False,
+        vnc: bool = False,
+        mounts: list[str] | None = None,
+    ) -> dict[str, Any]:
+        if mounts:
+            raise BridgeError("directory mounts are only supported by the Tart backend; use push for UTM")
         args = ["start"]
         if headless:
             args.append("--hide")
@@ -222,11 +264,11 @@ class UTMBackend(Backend):
         res = self._run(["ip-address", vm]).check()
         return [line.strip() for line in res.stdout.splitlines() if line.strip()]
 
-    def exec(self, vm: str, cmd: list[str], *, input_text: str | None = None) -> CommandResult:
+    def exec(self, vm: str, cmd: list[str], *, input_text: str | bytes | None = None) -> CommandResult:
         return self._run(["exec", vm, "--cmd", *cmd], input_text=input_text)
 
     def push(self, vm: str, local_path: str, remote_path: str) -> dict[str, Any]:
-        with open(local_path, "r", encoding="utf-8") as handle:
+        with open(local_path, "rb") as handle:
             data = handle.read()
         res = self._run(["file", "push", vm, remote_path], input_text=data).check()
         return {"backend": self.name, "vm": vm, "local": local_path, "remote": remote_path, "stdout": res.stdout}

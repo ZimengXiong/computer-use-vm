@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
-exec "/Users/zimengx/Documents/New project 9/codex-vm-bridge/bin/codex-vm-bridge" "$@"
+BRIDGE_ROOT="${CODEX_VM_BRIDGE_ROOT:-__CODEX_VM_BRIDGE_ROOT__}"
+exec "$BRIDGE_ROOT/bin/codex-vm-bridge" "$@"

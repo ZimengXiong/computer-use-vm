@@ -1,0 +1,43 @@
+{
+  "name": "codex-vm-bridge",
+  "version": "0.1.0",
+  "description": "Local VM lifecycle and guest computer-use bridge for Codex",
+  "license": "MIT",
+  "bin": {
+    "codex-vm-bridge": "bin/codex-vm-bridge",
+    "codex-vm-bridge-skill": "scripts/install-skill.mjs"
+  },
+  "scripts": {
+    "install-skill": "node scripts/install-skill.mjs",
+    "verify": "./scripts/verify.sh"
+  },
+  "files": [
+    "bin/",
+    "codex_vm_bridge/*.py",
+    "codex_vm_bridge/assets/guest/*.py",
+    "codex_vm_bridge/assets/guest/*.swift",
+    "guest/*.py",
+    "guest/*.swift",
+    "references/*.md",
+    "scripts/*.sh",
+    "scripts/*.mjs",
+    "skills/codex-vm-computer/SKILL.md",
+    "skills/codex-vm-computer/scripts/*",
+    "skills/codex-vm-computer/agents/*",
+    "skills/codex-vm-computer/references/*",
+    "examples/*.json",
+    "examples/*.sh",
+    "README.md",
+    "LICENSE",
+    "requirements-vnc.txt",
+    "pyproject.toml",
+    "MANIFEST.in"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/ZimengXiong/codex-vm-bridge.git"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

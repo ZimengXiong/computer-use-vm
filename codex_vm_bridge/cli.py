@@ -4,6 +4,7 @@ import argparse
 import base64
 import json
 import os
+import shutil
 import sys
 import subprocess
 from importlib.resources import files
@@ -24,6 +25,37 @@ def emit(value: Any) -> None:
     print(json.dumps(value, indent=2, sort_keys=True))
 
 
+def copy_skill() -> dict[str, Any]:
+    source = os.path.join(ROOT, "skills", "codex-vm-computer")
+    codex_home = os.environ.get("CODEX_HOME", os.path.join(os.path.expanduser("~"), ".codex"))
+    target = os.path.join(codex_home, "skills", "codex-vm-computer")
+    if not os.path.isdir(source):
+        raise BridgeError(f"skill source not found: {source}")
+    shutil.rmtree(target, ignore_errors=True)
+    shutil.copytree(source, target, ignore=shutil.ignore_patterns(".DS_Store", "__pycache__", "*.pyc"))
+    wrapper = os.path.join(target, "scripts", "codex-vm-bridge")
+    with open(wrapper, "r", encoding="utf-8") as handle:
+        text = handle.read()
+    with open(wrapper, "w", encoding="utf-8") as handle:
+        handle.write(text.replace("__CODEX_VM_BRIDGE_ROOT__", ROOT))
+    os.chmod(wrapper, 0o755)
+    return {
+        "installed": True,
+        "skill": "codex-vm-computer",
+        "target": target,
+        "bridge_root": ROOT,
+        "base_image_policy": "prepared macOS VM images are not distributed; build and provision a local base on each machine",
+        "next_steps": [
+            "codex-vm-bridge diagnose",
+            "codex-vm-bridge prepare-base codex-tahoe-base",
+            "codex-vm-bridge clone codex-tahoe-base codex-vm-computer-base",
+            "codex-vm-bridge start codex-vm-computer-base --vnc",
+            "codex-vm-bridge install-agent codex-vm-computer-base",
+            "codex-vm-bridge provision-dev-tools codex-vm-computer-base",
+        ],
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="codex-vm-bridge")
     parser.add_argument("--backend", choices=["tart", "utm"], help="VM backend; default prefers Tart then UTM")
@@ -31,6 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("diagnose")
     sub.add_parser("mcp")
+    sub.add_parser("install-skill")
     p = sub.add_parser("list")
     p.add_argument("--backend", choices=["tart", "utm"], help=argparse.SUPPRESS)
 
@@ -40,6 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--visible", action="store_true")
     p.add_argument("--vnc", action="store_true")
     p.add_argument("--disposable", action="store_true")
+    p.add_argument("--mount", action="append", default=[], help="Tart directory share, passed to tart run --dir. Example: repo:$PWD:tag=repo")
 
     p = sub.add_parser("stop")
     p.add_argument("--backend", choices=["tart", "utm"], help=argparse.SUPPRESS)
@@ -66,6 +100,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--backend", choices=["tart", "utm"], help=argparse.SUPPRESS)
     p.add_argument("vm")
     p.add_argument("command", nargs=argparse.REMAINDER)
+
+    p = sub.add_parser("push")
+    p.add_argument("--backend", choices=["tart", "utm"], help=argparse.SUPPRESS)
+    p.add_argument("vm")
+    p.add_argument("local_path")
+    p.add_argument("remote_path")
+
+    p = sub.add_parser("provision-dev-tools")
+    p.add_argument("--backend", choices=["tart", "utm"], help=argparse.SUPPRESS)
+    p.add_argument("vm")
 
     p = sub.add_parser("install-agent")
     p.add_argument("--backend", choices=["tart", "utm"], help=argparse.SUPPRESS)
@@ -169,6 +213,70 @@ def stop_agent(vm: str, backend_name: str | None) -> dict[str, Any]:
     backend = get_backend(backend_name)
     result = backend.exec(vm, ["sh", "-lc", "pkill -f codex_vm_guest_agent.py || true"]).check()
     return {"backend": backend.name, "vm": vm, "stopped": True, "stdout": result.stdout, "stderr": result.stderr}
+
+
+def provision_dev_tools(vm: str, backend_name: str | None) -> dict[str, Any]:
+    backend = get_backend(backend_name)
+    script = r"""
+set -euo pipefail
+
+if ! xcode-select -p >/dev/null 2>&1; then
+  echo "Xcode Command Line Tools are not selected. Install them in the guest UI with: xcode-select --install" >&2
+  exit 2
+fi
+
+if ! command -v brew >/dev/null 2>&1; then
+  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  if [ -x /opt/homebrew/bin/brew ]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  elif [ -x /usr/local/bin/brew ]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+  fi
+fi
+
+if [ -x /opt/homebrew/bin/brew ]; then
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [ -x /usr/local/bin/brew ]; then
+  eval "$(/usr/local/bin/brew shellenv)"
+fi
+
+brew update
+for formula in xcodegen make xcbeautify swiftformat; do
+  brew list --formula "$formula" >/dev/null 2>&1 || brew install "$formula"
+done
+
+swiftlint_status="not-attempted"
+if [ -d /Applications/Xcode.app ]; then
+  brew list --formula swiftlint >/dev/null 2>&1 || brew install swiftlint
+  swiftlint_status="installed"
+else
+  swiftlint_status="skipped: requires full /Applications/Xcode.app, not just Command Line Tools"
+fi
+export swiftlint_status
+
+python3 - <<'PY'
+import json, os, shutil, subprocess
+tools = ["xcodebuild", "swift", "swiftc", "xcodegen", "make", "xcbeautify", "swiftformat", "swiftlint", "brew"]
+result = {"_notes": {"swiftlint": os.environ.get("swiftlint_status", "")}}
+for tool in tools:
+    path = shutil.which(tool)
+    item = {"path": path}
+    if path:
+        try:
+            proc = subprocess.run([tool, "--version"], text=True, capture_output=True, timeout=30)
+            item["version"] = (proc.stdout or proc.stderr).splitlines()[0] if (proc.stdout or proc.stderr) else ""
+        except Exception as exc:
+            item["version_error"] = str(exc)
+    result[tool] = item
+print("CODEX_VM_TOOLS_JSON_START")
+print(json.dumps(result, indent=2, sort_keys=True))
+PY
+"""
+    result = backend.exec(vm, ["zsh", "-lc", script]).check()
+    marker = "CODEX_VM_TOOLS_JSON_START\n"
+    summary_text = result.stdout.split(marker, 1)[1] if marker in result.stdout else "{}"
+    summary = json.loads(summary_text)
+    return {"backend": backend.name, "vm": vm, "tools": summary, "stderr": result.stderr}
 
 
 def run_agent_command(args: argparse.Namespace) -> dict[str, Any]:
@@ -309,11 +417,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "mcp":
             serve_stdio()
             return 0
+        if args.cmd == "install-skill":
+            emit(copy_skill())
+            return 0
         backend = get_backend(args.backend)
         if args.cmd == "list":
             emit(backend.list())
         elif args.cmd == "start":
-            emit(backend.start(args.vm, headless=not args.visible and not args.vnc, disposable=args.disposable, vnc=args.vnc))
+            emit(backend.start(args.vm, headless=not args.visible and not args.vnc, disposable=args.disposable, vnc=args.vnc, mounts=args.mount))
         elif args.cmd == "stop":
             emit(backend.stop(args.vm))
         elif args.cmd == "clone":
@@ -333,6 +444,10 @@ def main(argv: list[str] | None = None) -> int:
             result = backend.exec(args.vm, args.command)
             emit({"returncode": result.returncode, "stdout": result.stdout, "stderr": result.stderr})
             return result.returncode
+        elif args.cmd == "push":
+            emit(backend.push(args.vm, args.local_path, args.remote_path))
+        elif args.cmd == "provision-dev-tools":
+            emit(provision_dev_tools(args.vm, args.backend))
         elif args.cmd == "install-agent":
             emit(install_agent(args.vm, args.backend, args.remote_dir))
         elif args.cmd == "start-agent":
