@@ -14,6 +14,9 @@ Copy this into your agent:
 Read https://raw.githubusercontent.com/ZimengXiong/computer-use-vm/main/INSTALL.md and follow it to install Computer Use VM. During first-time setup, tell me when I need to VNC into the VM to approve macOS Screen Recording and Accessibility permissions.
 ```
 
+> [!NOTE]
+> First-time setup is not fully unattended. The user needs to VNC into the VM once to approve macOS Screen Recording and Accessibility prompts for the guest agent/helper.
+
 ## Use
 
 Build a local base once:
