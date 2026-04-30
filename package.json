@@ -27,6 +27,7 @@
     "examples/*.json",
     "examples/*.sh",
     "README.md",
+    "INSTALL.md",
     "LICENSE",
     "requirements-vnc.txt",
     "pyproject.toml",

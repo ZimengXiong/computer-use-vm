@@ -9,7 +9,7 @@ Use `computer-use-vm` or this skill's wrapper to control disposable VMs.
 
 ## Base Image Policy
 
-Each machine builds its own base locally. That keeps Apple software, privacy grants, user state, caches, and machine-specific data out of GitHub, npm, releases, and Hugging Face.
+Each machine builds its own base locally.
 
 If `computer-use-vm-base` is missing, create it locally with the commands in this skill. Before first-time setup, tell the user they will need to VNC into the VM and approve macOS Screen Recording and Accessibility prompts for the guest agent/helper. Do not present first-time setup as fully unattended.
 
