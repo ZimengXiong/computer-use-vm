@@ -6,10 +6,6 @@ Computer Use VM gives coding agents a VM they can use for terminal and GUI work 
 
 It does not ship a macOS base image. Each machine builds its own base locally.
 
-## Install
-
-Follow [INSTALL.md](INSTALL.md) to install the skill and do first-time setup.
-
 ## Let Your Agent Install It
 
 Copy this into your agent:
