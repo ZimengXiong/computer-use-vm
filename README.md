@@ -14,6 +14,12 @@ Install the Codex skill from npm:
 npx computer-use-vm install-skill
 ```
 
+`add` is accepted as a shorter alias:
+
+```bash
+npx computer-use-vm add
+```
+
 From a checkout, use:
 
 ```bash
@@ -93,9 +99,5 @@ codex-vm-bridge mcp
 ```
 
 The MCP server exposes VM lifecycle, `vm_exec`, `vm_push`, and the guest-agent screenshot/accessibility/input tools. See [examples/mcp.json](examples/mcp.json).
-
-## Notes
-
-`codex-vm-computer-base` is just a local Tart VM name. Do not upload or redistribute it. If another machine needs the bridge, install the package there and build a fresh local base.
 
 UTM support exists for local VMs, but Tart is the main path for disposable macOS VM workflows.

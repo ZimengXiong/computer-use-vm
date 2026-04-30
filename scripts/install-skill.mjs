@@ -15,10 +15,11 @@ const bridgeBin = path.join(root, "bin", "codex-vm-bridge");
 function usage() {
   console.log(`Usage:
   npx computer-use-vm install-skill
+  npx computer-use-vm add
   npx computer-use-vm
 
 Installs the codex-vm-computer skill into $CODEX_HOME/skills.
-Base VM images are not installed or downloaded; each machine must build its own base locally.`);
+Each machine builds its own base locally. That keeps Apple software, privacy grants, user state, caches, and machine-specific data out of GitHub, npm, releases, and Hugging Face.`);
 }
 
 function copyDir(src, dst) {
@@ -42,7 +43,7 @@ if (command === "help" || command === "--help" || command === "-h") {
   usage();
   process.exit(0);
 }
-if (command !== "install-skill") {
+if (command !== "install-skill" && command !== "add") {
   console.error(`Unknown command: ${command}`);
   usage();
   process.exit(2);
@@ -67,4 +68,4 @@ console.log("");
 console.log("Next steps:");
 console.log("  1. Run: codex-vm-bridge diagnose");
 console.log("  2. Build a local base VM with the README Quick Start commands.");
-console.log("  3. Do not download or redistribute a prepared macOS VM image.");
+console.log("  3. Each machine builds its own base locally.");

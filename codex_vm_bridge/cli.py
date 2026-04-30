@@ -44,7 +44,7 @@ def copy_skill() -> dict[str, Any]:
         "skill": "codex-vm-computer",
         "target": target,
         "bridge_root": ROOT,
-        "base_image_policy": "prepared macOS VM images are not distributed; build and provision a local base on each machine",
+        "base_image_policy": "Each machine builds its own base locally. That keeps Apple software, privacy grants, user state, caches, and machine-specific data out of GitHub, npm, releases, and Hugging Face.",
         "next_steps": [
             "codex-vm-bridge diagnose",
             "codex-vm-bridge prepare-base codex-tahoe-base",
@@ -64,6 +64,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("diagnose")
     sub.add_parser("mcp")
     sub.add_parser("install-skill")
+    sub.add_parser("add")
     p = sub.add_parser("list")
     p.add_argument("--backend", choices=["tart", "utm"], help=argparse.SUPPRESS)
 
@@ -417,7 +418,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "mcp":
             serve_stdio()
             return 0
-        if args.cmd == "install-skill":
+        if args.cmd in {"install-skill", "add"}:
             emit(copy_skill())
             return 0
         backend = get_backend(args.backend)

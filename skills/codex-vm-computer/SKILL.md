@@ -9,9 +9,9 @@ Use `codex-vm-bridge` or this skill's `scripts/codex-vm-bridge` wrapper to contr
 
 ## Base Image Policy
 
-Prepared macOS VM base images are not distributed by this skill and must not be downloaded, uploaded, published, or redistributed by agents. Build and provision a local base image on each machine. A prepared base may contain Apple software, guest user state, privacy grants, package-manager caches, and machine-specific data.
+Each machine builds its own base locally. That keeps Apple software, privacy grants, user state, caches, and machine-specific data out of GitHub, npm, releases, and Hugging Face.
 
-If `codex-vm-computer-base` is missing, create it locally with the commands in this skill. If macOS privacy prompts appear inside the guest, ask the user to approve Screen Recording and Accessibility for the guest agent/helper. Do not work around those prompts by fetching a prebuilt base image.
+If `codex-vm-computer-base` is missing, create it locally with the commands in this skill. If macOS privacy prompts appear inside the guest, ask the user to approve Screen Recording and Accessibility for the guest agent/helper.
 
 ## Default Workflow
 
@@ -31,7 +31,7 @@ codex-vm-bridge clone codex-vm-computer-base <task-vm>
 
 This base has the guest agent installed as a user LaunchAgent and has the required macOS privacy grants for native screenshots.
 
-4. Prepare a raw Tart base image only if `codex-vm-computer-base` does not exist. Build this locally; do not fetch a prepared macOS base image:
+4. Prepare a raw Tart base image only if `codex-vm-computer-base` does not exist:
 
 ```bash
 codex-vm-bridge prepare-base codex-tahoe-base
@@ -130,5 +130,5 @@ Available tools include VM diagnostics, list, start with Tart mounts, stop, clon
 - The fastest path is the in-guest agent because screenshots, AX-tree introspection, and input are native to the VM.
 - VNC/SPICE/UTM window automation is fallback only; it is useful for bootstrap, visual debugging, and pre-permission introspection but adds latency and coordinate fragility.
 - macOS privacy prompts may require granting Screen Recording and Accessibility permissions inside the guest.
-- Do not ship, fetch, upload, or redistribute prepared macOS VM images. Always build the base locally.
+- Each machine builds its own base locally. That keeps Apple software, privacy grants, user state, caches, and machine-specific data out of GitHub, npm, releases, and Hugging Face.
 - UTM `utmctl` can fail from non-GUI sessions with Apple Event permission errors; use Tart when host-level GUI scripting permissions are unavailable.
