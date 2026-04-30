@@ -6,21 +6,23 @@ This is a small bridge for running macOS GUI and terminal work inside Tart or UT
 
 It does not ship a macOS base image. Each machine builds its own base locally. That keeps Apple software, privacy grants, user state, caches, and machine-specific data out of GitHub, npm, releases, and Hugging Face.
 
-## Install
+## Install The Skill
 
-Install the Codex skill from npm:
+Use the open skills CLI:
 
 ```bash
-npx computer-use-vm install-skill
+npx skills add ZimengXiong/codex-vm-bridge -a codex -g
 ```
 
-`add` is accepted as a shorter alias:
+That installs `skills/codex-vm-computer`. The skill wrapper uses a local checkout when it has one, an installed `codex-vm-bridge` command when available, or `npx -y computer-use-vm` as a fallback.
+
+If you only want the package installer:
 
 ```bash
 npx computer-use-vm add
 ```
 
-From a checkout, use:
+From a checkout, this also works:
 
 ```bash
 npm run install-skill
