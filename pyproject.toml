@@ -1,7 +1,7 @@
 [project]
 name = "codex-vm-bridge"
 version = "0.1.0"
-description = "Local VM lifecycle and guest computer-use bridge for Codex"
+description = "Let agents run disposable VMs"
 requires-python = ">=3.11"
 dependencies = []
 readme = "README.md"

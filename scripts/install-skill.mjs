@@ -14,8 +14,8 @@ const bridgeBin = path.join(root, "bin", "codex-vm-bridge");
 
 function usage() {
   console.log(`Usage:
-  npx codex-vm-bridge install-skill
-  npx codex-vm-bridge
+  npx computer-use-vm install-skill
+  npx computer-use-vm
 
 Installs the codex-vm-computer skill into $CODEX_HOME/skills.
 Base VM images are not installed or downloaded; each machine must build its own base locally.`);

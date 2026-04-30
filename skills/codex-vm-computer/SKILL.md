@@ -1,11 +1,11 @@
 ---
 name: codex-vm-computer
-description: Run computer-use and GUI automation work inside an isolated macOS VM instead of the host desktop. Use when Codex needs to test macOS apps, browse or click around without blocking the native system, run risky installers, perform background GUI tasks, inspect a VM screen, or manage disposable Tart/UTM virtual machines with a guest-side screenshot/click/type agent.
+description: Let agents run disposable VMs for computer-use and GUI automation instead of controlling the host desktop.
 ---
 
 # Codex VM Computer
 
-Use the local bridge through `codex-vm-bridge` or the installed skill wrapper at `scripts/codex-vm-bridge` to control disposable macOS VMs.
+Use `codex-vm-bridge` or this skill's `scripts/codex-vm-bridge` wrapper to control disposable macOS VMs.
 
 ## Base Image Policy
 
