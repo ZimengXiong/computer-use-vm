@@ -6,11 +6,14 @@ Install the skill with the open skills CLI:
 npx skills add ZimengXiong/computer-use-vm
 ```
 
-Or install from npm:
+Install the command on PATH:
 
 ```bash
-npx computer-use-vm add
+npm install -g computer-use-vm
+computer-use-vm diagnose
 ```
+
+If you do not want a global install, agents can run the command through `npx -y computer-use-vm ...`, but a global install is simpler and avoids PATH discovery issues.
 
 Install the VM backend you want to use separately. Tart is the recommended path on Apple Silicon Macs:
 

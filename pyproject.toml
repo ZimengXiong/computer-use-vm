@@ -1,6 +1,6 @@
 [project]
 name = "computer-use-vm"
-version = "0.1.2"
+version = "0.1.3"
 description = "Let agents run disposable VMs"
 requires-python = ">=3.11"
 dependencies = []

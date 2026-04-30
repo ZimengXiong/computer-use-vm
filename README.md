@@ -13,7 +13,7 @@ It does not ship a macOS base image. Each machine builds its own base locally.
 Copy this into your agent:
 
 ```md
-Read https://raw.githubusercontent.com/ZimengXiong/computer-use-vm/main/INSTALL.md and follow it to install Computer Use VM. During first-time setup, tell me when I need to VNC into the VM to approve macOS Screen Recording and Accessibility permissions.
+Read https://raw.githubusercontent.com/ZimengXiong/computer-use-vm/main/INSTALL.md and follow it to install Computer Use VM. Make sure the `computer-use-vm` command is installed on PATH, then run `computer-use-vm diagnose`. During first-time setup, tell me when I need to VNC into the VM to approve macOS Screen Recording and Accessibility permissions.
 ```
 
 > [!NOTE]
