@@ -241,7 +241,7 @@ def respond(message_id: Any, result: Any = None, error: Exception | None = None)
 
 def serve_stdio() -> None:
     methods: dict[str, Callable[[dict[str, Any]], Any]] = {
-        "initialize": lambda params: {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}}, "serverInfo": {"name": "computer-use-vm", "version": "0.1.4"}},
+        "initialize": lambda params: {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}}, "serverInfo": {"name": "computer-use-vm", "version": "0.1.5"}},
         "tools/list": lambda params: {"tools": tool_schema()},
         "tools/call": lambda params: {"content": [{"type": "text", "text": json.dumps(call_tool(params["name"], params.get("arguments") or {}), indent=2)}]},
     }

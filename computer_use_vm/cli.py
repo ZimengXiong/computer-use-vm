@@ -370,6 +370,7 @@ def ensure_vnc_tools() -> None:
 
 def ensure_novnc() -> str:
     if os.path.isdir(os.path.join(NOVNC_DIR, ".git")):
+        write_novnc_autologin_page()
         return NOVNC_DIR
     shutil.rmtree(NOVNC_DIR, ignore_errors=True)
     os.makedirs(os.path.dirname(NOVNC_DIR), exist_ok=True)
@@ -377,7 +378,57 @@ def ensure_novnc() -> str:
     if not git:
         raise BridgeError("git is required to install noVNC")
     subprocess.run([git, "clone", "--depth", "1", "https://github.com/novnc/noVNC.git", NOVNC_DIR], check=True)
+    write_novnc_autologin_page()
     return NOVNC_DIR
+
+
+def write_novnc_autologin_page() -> None:
+    page = """<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Computer Use VM</title>
+  <style>
+    html, body, #screen { height: 100%; margin: 0; background: #111; overflow: hidden; }
+    #screen { display: flex; align-items: center; justify-content: center; }
+    #status { position: fixed; left: 12px; bottom: 12px; color: white; background: rgba(0,0,0,.65); padding: 6px 8px; font: 12px system-ui, sans-serif; border-radius: 6px; z-index: 2; }
+  </style>
+</head>
+<body>
+  <div id="screen"></div>
+  <div id="status">Connecting...</div>
+  <script type="module">
+    import RFB from './core/rfb.js';
+    const params = new URLSearchParams(location.search);
+    const secret = new URLSearchParams(location.hash.slice(1));
+    const host = params.get('host') || location.hostname;
+    const port = params.get('port') || location.port;
+    const path = params.get('path') || 'websockify';
+    const username = secret.get('username') || params.get('username') || undefined;
+    const password = secret.get('password') || params.get('password') || undefined;
+    const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const url = `${wsProto}://${host}:${port}/${path}`;
+    const status = document.getElementById('status');
+    const rfb = new RFB(document.getElementById('screen'), url, {
+      shared: true,
+      credentials: { username, password },
+    });
+    rfb.scaleViewport = true;
+    rfb.resizeSession = false;
+    rfb.showDotCursor = true;
+    rfb.addEventListener('connect', () => { status.textContent = 'Connected'; setTimeout(() => status.remove(), 1500); });
+    rfb.addEventListener('disconnect', e => { status.textContent = e.detail.clean ? 'Disconnected' : 'Disconnected unexpectedly'; });
+    rfb.addEventListener('credentialsrequired', e => {
+      status.textContent = `Credentials required: ${e.detail.types.join(', ')}`;
+      rfb.sendCredentials({ username, password });
+    });
+  </script>
+</body>
+</html>
+"""
+    if os.path.isdir(NOVNC_DIR):
+        with open(os.path.join(NOVNC_DIR, "computer-use-vm.html"), "w", encoding="utf-8") as handle:
+            handle.write(page)
 
 
 def free_port(preferred: int = 6080) -> int:
@@ -421,7 +472,7 @@ def launch_novnc(vm: str, backend: Any, preferred_port: int | None = None) -> di
         stdin=subprocess.DEVNULL,
         start_new_session=True,
     )
-    url = f"http://127.0.0.1:{web_port}/vnc.html?host=127.0.0.1&port={web_port}&autoconnect=true&resize=scale"
+    url = f"http://127.0.0.1:{web_port}/computer-use-vm.html?host=127.0.0.1&port={web_port}#username=admin&password=admin"
     return {
         "enabled": True,
         "vm": vm,
