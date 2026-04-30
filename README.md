@@ -1,6 +1,7 @@
 # Computer Use VM
 
 Let agents run disposable VMs.
+<img width="936" height="505" alt="image" src="https://github.com/user-attachments/assets/22027b3a-d6ec-4a91-b2ce-9e5cb0576e8f" />
 
 Computer Use VM gives coding agents a VM they can use for terminal and GUI work instead of touching your host desktop. Start a disposable VM, mount the current project, let the agent work inside it, then throw the VM away.
 
