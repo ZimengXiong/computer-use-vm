@@ -42,9 +42,11 @@ For a task, clone the base and mount your repo:
 
 ```bash
 computer-use-vm clone computer-use-vm-base task-vm
-computer-use-vm start task-vm --mount "repo:$PWD:tag=repo"
+computer-use-vm start task-vm --vnc --mount "repo:$PWD:tag=repo"
 computer-use-vm exec task-vm zsh -lc 'cd /Volumes/My\ Shared\ Files/repo && make test'
 ```
+
+When `--vnc` is used, the bridge also tries to launch a local noVNC web stream and returns a `novnc.url`. That page is for watching the VM in a browser; keep automation control through the guest agent or `computer-use-vm vnc`.
 
 For GUI work, use the guest agent:
 

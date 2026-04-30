@@ -5,8 +5,11 @@ import base64
 import json
 import os
 import shutil
+import socket
 import sys
+import time
 import subprocess
+import tempfile
 from importlib.resources import files
 from typing import Any
 
@@ -19,6 +22,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 GUEST_AGENT = str(files("computer_use_vm").joinpath("assets", "guest", "computer_use_vm_guest_agent.py"))
 GUEST_HELPER = str(files("computer_use_vm").joinpath("assets", "guest", "ComputerUseVMGuestHelper.swift"))
 VNCDO = os.path.join(ROOT, ".venv", "bin", "vncdo")
+WEBSOCKIFY = os.path.join(ROOT, ".venv", "bin", "websockify")
+NOVNC_DIR = os.path.join(ROOT, ".cache", "novnc")
 LAUNCH_AGENT_LABEL_PREFIX = "local.computer-use.vm-agent"
 LEGACY_LAUNCH_AGENT_LABELS = ["local.codex.vm-agent"]
 
@@ -75,6 +80,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("vm")
     p.add_argument("--visible", action="store_true")
     p.add_argument("--vnc", action="store_true")
+    p.add_argument("--no-novnc", action="store_true", help="Do not launch a browser-viewable noVNC stream when --vnc is used")
+    p.add_argument("--novnc-port", type=int, help="Preferred local noVNC web port; defaults to the first free port from 6080")
     p.add_argument("--disposable", action="store_true")
     p.add_argument("--mount", action="append", default=[], help="Tart directory share, passed to tart run --dir. Example: repo:$PWD:tag=repo")
 
@@ -349,6 +356,84 @@ echo configured
     return {"backend": backend.name, "vm": vm, "configured": True, "stdout": result.stdout, "stderr": result.stderr}
 
 
+def ensure_vnc_tools() -> None:
+    needs_install = not os.path.exists(VNCDO) or not os.path.exists(WEBSOCKIFY)
+    if not needs_install:
+        probe = subprocess.run([VNCDO, "--help"], text=True, capture_output=True, timeout=30)
+        ws_probe = subprocess.run([WEBSOCKIFY, "--help"], text=True, capture_output=True, timeout=30)
+        needs_install = probe.returncode != 0 or ws_probe.returncode != 0
+    if needs_install:
+        shutil.rmtree(os.path.join(ROOT, ".venv"), ignore_errors=True)
+        subprocess.run([sys.executable, "-m", "venv", os.path.join(ROOT, ".venv")], check=True)
+        subprocess.run([os.path.join(ROOT, ".venv", "bin", "python"), "-m", "pip", "install", "-r", os.path.join(ROOT, "requirements-vnc.txt")], check=True)
+
+
+def ensure_novnc() -> str:
+    if os.path.isdir(os.path.join(NOVNC_DIR, ".git")):
+        return NOVNC_DIR
+    shutil.rmtree(NOVNC_DIR, ignore_errors=True)
+    os.makedirs(os.path.dirname(NOVNC_DIR), exist_ok=True)
+    git = shutil.which("git")
+    if not git:
+        raise BridgeError("git is required to install noVNC")
+    subprocess.run([git, "clone", "--depth", "1", "https://github.com/novnc/noVNC.git", NOVNC_DIR], check=True)
+    return NOVNC_DIR
+
+
+def free_port(preferred: int = 6080) -> int:
+    for port in range(preferred, preferred + 100):
+        sock = socket.socket()
+        try:
+            sock.bind(("127.0.0.1", port))
+            return port
+        except OSError:
+            continue
+        finally:
+            sock.close()
+    raise BridgeError(f"no free local port found from {preferred}")
+
+
+def wait_for_vm_ip(backend: Any, vm: str, timeout: int = 60) -> str:
+    deadline = time.time() + timeout
+    last_error = None
+    while time.time() < deadline:
+        try:
+            ips = backend.ip(vm)
+            if ips:
+                return ips[0]
+        except Exception as exc:
+            last_error = exc
+        time.sleep(2)
+    raise BridgeError(f"timed out waiting for IP address for {vm}: {last_error}")
+
+
+def launch_novnc(vm: str, backend: Any, preferred_port: int | None = None) -> dict[str, Any]:
+    ensure_vnc_tools()
+    novnc = ensure_novnc()
+    ip = wait_for_vm_ip(backend, vm)
+    web_port = free_port(preferred_port or 6080)
+    log_path = os.path.join(tempfile.gettempdir(), f"computer-use-vm-novnc-{vm}-{web_port}.log")
+    log = open(log_path, "ab")
+    proc = subprocess.Popen(
+        [WEBSOCKIFY, "--web", novnc, f"127.0.0.1:{web_port}", f"{ip}:5900"],
+        stdout=log,
+        stderr=log,
+        stdin=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    url = f"http://127.0.0.1:{web_port}/vnc.html?host=127.0.0.1&port={web_port}&autoconnect=true&resize=scale"
+    return {
+        "enabled": True,
+        "vm": vm,
+        "guest_vnc": f"{ip}:5900",
+        "web_port": web_port,
+        "url": url,
+        "pid": proc.pid,
+        "log": log_path,
+        "note": "noVNC is for user-visible browser streaming; keep automation control through the guest agent or computer-use-vm vnc commands.",
+    }
+
+
 def provision_dev_tools(vm: str, backend_name: str | None) -> dict[str, Any]:
     backend = get_backend(backend_name)
     script = r"""
@@ -593,14 +678,7 @@ print(urllib.request.urlopen(req, timeout=60).read().decode())
 
 
 def run_vnc_command(args: argparse.Namespace) -> dict[str, Any]:
-    needs_vnc_install = not os.path.exists(VNCDO)
-    if not needs_vnc_install:
-        probe = subprocess.run([VNCDO, "--help"], text=True, capture_output=True, timeout=30)
-        needs_vnc_install = probe.returncode != 0
-    if needs_vnc_install:
-        shutil.rmtree(os.path.join(ROOT, ".venv"), ignore_errors=True)
-        subprocess.run([sys.executable, "-m", "venv", os.path.join(ROOT, ".venv")], check=True)
-        subprocess.run([os.path.join(ROOT, ".venv", "bin", "python"), "-m", "pip", "install", "-r", os.path.join(ROOT, "requirements-vnc.txt")], check=True)
+    ensure_vnc_tools()
     if not os.path.exists(VNCDO):
         raise BridgeError(f"vncdotool is not installed at {VNCDO}; run: python3 -m venv {ROOT}/.venv && {ROOT}/.venv/bin/pip install vncdotool")
     base = [VNCDO, "-s", args.host, "-u", args.user, "-p", args.password, "--timeout", "30"]
@@ -648,7 +726,17 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "list":
             emit(backend.list())
         elif args.cmd == "start":
-            emit(backend.start(args.vm, headless=not args.visible and not args.vnc, disposable=args.disposable, vnc=args.vnc, mounts=args.mount))
+            result = backend.start(args.vm, headless=not args.visible and not args.vnc, disposable=args.disposable, vnc=args.vnc, mounts=args.mount)
+            if args.vnc and not args.no_novnc:
+                try:
+                    result["novnc"] = launch_novnc(args.vm, backend, args.novnc_port)
+                except Exception as exc:
+                    result["novnc"] = {
+                        "enabled": False,
+                        "error": str(exc),
+                        "note": "The VM VNC server was started, but the browser-viewable noVNC stream could not be launched.",
+                    }
+            emit(result)
         elif args.cmd == "stop":
             emit(backend.stop(args.vm))
         elif args.cmd == "clone":

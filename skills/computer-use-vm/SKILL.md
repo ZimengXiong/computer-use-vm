@@ -70,6 +70,8 @@ macOS guests automount the shared directory under `/Volumes/My Shared Files/repo
 computer-use-vm push <task-vm> ./local-file-or-folder /Users/admin/local-file-or-folder
 ```
 
+When using `--vnc`, the bridge also starts a local noVNC web stream when possible and returns a `novnc.url` such as `http://127.0.0.1:6080/vnc.html?...`. This browser page is for the user to watch the VM session, not for agent control. If running in Codex with the in-app browser/browser-use capability available, open that URL in the in-app browser so the user can see progress. Otherwise, tell the user they can view the VM at the returned URL.
+
 The prepared base should already have Homebrew, XcodeGen, Make, xcbeautify, and swiftformat. If a base is missing those tools, start it and run:
 
 ```bash
@@ -129,6 +131,7 @@ computer-use-vm vnc type --host <guest-ip> --text "hello"
 
 - Headless/background: `start` defaults to hidden/no-graphics where the backend supports it. Use this for shell/background work; pixel screenshots are not available without a display surface.
 - Visible/introspection: pass `--visible` to show the VM window, or `--vnc` to expose a VNC screen-sharing session.
+- Browser-visible VNC: `start --vnc` also attempts to launch noVNC locally and returns a `novnc.url`. Use it for observation only; continue controlling the VM through the guest agent or `computer-use-vm vnc`.
 - Disposable UTM run: pass `--disposable` for UTM snapshot-style runs.
 - Tart disposable run: clone from a base VM, work in the clone, then delete the clone.
 
