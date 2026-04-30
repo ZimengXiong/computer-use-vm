@@ -26,7 +26,7 @@ class AgentState:
 
 def make_handler(state: AgentState) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
-        server_version = "CodexVMGuestAgent/0.1"
+        server_version = "ComputerUseVMGuestAgent/0.1"
 
         def log_message(self, fmt: str, *args: Any) -> None:
             return
@@ -47,7 +47,7 @@ def make_handler(state: AgentState) -> type[BaseHTTPRequestHandler]:
 
         def route(self) -> dict[str, Any]:
             if self.path == "/ping":
-                return {"ok": True, "agent": "codex-vm-guest-agent"}
+                return {"ok": True, "agent": "computer-use-vm-guest-agent"}
             if self.path == "/permissions":
                 return state.run_helper("permissions")
             if self.path == "/screenshot":
@@ -98,7 +98,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=7042)
-    parser.add_argument("--helper", default="./codex-vm-guest-helper")
+    parser.add_argument("--helper", default="./computer-use-vm-guest-helper")
     args = parser.parse_args()
     server = ThreadingHTTPServer((args.host, args.port), make_handler(AgentState(args.helper)))
     print(json.dumps({"ok": True, "host": args.host, "port": args.port}), flush=True)

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BRIDGE_ROOT="${COMPUTER_USE_VM_ROOT:-__COMPUTER_USE_VM_ROOT__}"
+
+if [ "$BRIDGE_ROOT" != "__COMPUTER_USE_VM_ROOT__" ] && [ -x "$BRIDGE_ROOT/bin/computer-use-vm" ]; then
+  exec "$BRIDGE_ROOT/bin/computer-use-vm" "$@"
+fi
+
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." 2>/dev/null && pwd || true)"
+if [ -n "$REPO_ROOT" ] && [ -x "$REPO_ROOT/bin/computer-use-vm" ]; then
+  exec "$REPO_ROOT/bin/computer-use-vm" "$@"
+fi
+
+if command -v computer-use-vm >/dev/null 2>&1; then
+  exec computer-use-vm "$@"
+fi
+
+exec npx -y computer-use-vm "$@"

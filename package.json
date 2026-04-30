@@ -4,9 +4,7 @@
   "description": "Let agents run disposable VMs",
   "license": "MIT",
   "bin": {
-    "codex-vm-bridge": "bin/codex-vm-bridge",
-    "computer-use-vm": "bin/codex-vm-bridge",
-    "codex-vm-bridge-skill": "scripts/install-skill.mjs"
+    "computer-use-vm": "bin/computer-use-vm"
   },
   "scripts": {
     "install-skill": "node scripts/install-skill.mjs",
@@ -14,18 +12,18 @@
   },
   "files": [
     "bin/",
-    "codex_vm_bridge/*.py",
-    "codex_vm_bridge/assets/guest/*.py",
-    "codex_vm_bridge/assets/guest/*.swift",
+    "computer_use_vm/*.py",
+    "computer_use_vm/assets/guest/*.py",
+    "computer_use_vm/assets/guest/*.swift",
     "guest/*.py",
     "guest/*.swift",
     "references/*.md",
     "scripts/*.sh",
     "scripts/*.mjs",
-    "skills/codex-vm-computer/SKILL.md",
-    "skills/codex-vm-computer/scripts/*",
-    "skills/codex-vm-computer/agents/*",
-    "skills/codex-vm-computer/references/*",
+    "skills/computer-use-vm/SKILL.md",
+    "skills/computer-use-vm/scripts/*",
+    "skills/computer-use-vm/agents/*",
+    "skills/computer-use-vm/references/*",
     "examples/*.json",
     "examples/*.sh",
     "README.md",
@@ -36,7 +34,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/ZimengXiong/codex-vm-bridge.git"
+    "url": "git+ssh://git@github.com/ZimengXiong/computer-use-vm.git"
   },
   "engines": {
     "node": ">=18"

@@ -143,7 +143,7 @@ class TartBackend(Backend):
         args.append(vm)
         if not self.bin:
             raise BridgeError("tart is not installed")
-        log_path = os.path.join(tempfile.gettempdir(), f"codex-vm-bridge-tart-{re.sub(r'[^A-Za-z0-9_.-]', '_', vm)}.log")
+        log_path = os.path.join(tempfile.gettempdir(), f"computer-use-vm-tart-{re.sub(r'[^A-Za-z0-9_.-]', '_', vm)}.log")
         log = open(log_path, "ab")
         proc = subprocess.Popen([self.bin, *args], stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
         return {"backend": self.name, "vm": vm, "started": True, "headless": headless, "vnc": vnc, "mounts": mounts or [], "pid": proc.pid, "log": log_path}
@@ -216,7 +216,7 @@ class UTMBackend(Backend):
             info["version_stderr"] = res.stderr.strip()
             info["version_ok"] = res.returncode == 0
             if "errAEEventNotPermitted" in res.stderr or "OSStatus error -1743" in res.stderr:
-                info["permission_hint"] = "Grant Automation permission for the terminal/Codex app to control UTM, and run from a logged-in GUI session."
+                info["permission_hint"] = "Grant Automation permission for the terminal app to control UTM, and run from a logged-in GUI session."
         return info
 
     def list(self) -> list[dict[str, Any]]:

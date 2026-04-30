@@ -1,4 +1,4 @@
 interface:
-  display_name: "Codex VM Computer"
+  display_name: "Computer Use VM"
   short_description: "Run GUI work inside disposable macOS VMs."
   default_prompt: "Use a disposable macOS VM for this computer-use task."

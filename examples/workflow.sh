@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BRIDGE="${BRIDGE:-./bin/codex-vm-bridge}"
-BASE="${BASE:-codex-vm-computer-base}"
-TASK="${TASK:-codex-vm-task-$(date +%s)}"
+BRIDGE="${BRIDGE:-./bin/computer-use-vm}"
+BASE="${BASE:-computer-use-vm-base}"
+TASK="${TASK:-computer-use-vm-task-$(date +%s)}"
 
 "$BRIDGE" clone --backend tart "$BASE" "$TASK"
 "$BRIDGE" start --backend tart "$TASK" --vnc
@@ -22,7 +22,7 @@ if [ -z "$IP" ]; then
   exit 1
 fi
 
-"$BRIDGE" agent screenshot --host "$IP" --output /tmp/codex-vm-task.png
+"$BRIDGE" agent screenshot --host "$IP" --output /tmp/computer-use-vm-task.png
 "$BRIDGE" agent ax-tree --host "$IP" --depth 5 --max-children 80
 
 echo "Task VM: $TASK"

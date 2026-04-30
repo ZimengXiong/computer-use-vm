@@ -1,5 +1,5 @@
 [project]
-name = "codex-vm-bridge"
+name = "computer-use-vm"
 version = "0.1.0"
 description = "Let agents run disposable VMs"
 requires-python = ">=3.11"
@@ -7,9 +7,9 @@ dependencies = []
 readme = "README.md"
 license = "MIT"
 authors = [
-  { name = "Codex VM Bridge contributors" }
+  { name = "Computer Use VM contributors" }
 ]
-keywords = ["codex", "computer-use", "macos", "virtual-machine", "tart", "utm", "accessibility"]
+keywords = ["computer-use", "macos", "virtual-machine", "tart", "utm", "accessibility"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: MacOS X",
@@ -20,18 +20,18 @@ classifiers = [
 ]
 
 [project.scripts]
-codex-vm-bridge = "codex_vm_bridge.cli:main"
+computer-use-vm = "computer_use_vm.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/ZimengXiong/codex-vm-bridge"
-Issues = "https://github.com/ZimengXiong/codex-vm-bridge/issues"
+Homepage = "https://github.com/ZimengXiong/computer-use-vm"
+Issues = "https://github.com/ZimengXiong/computer-use-vm/issues"
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["codex_vm_bridge*"]
+include = ["computer_use_vm*"]
 
 [tool.setuptools.package-data]
-codex_vm_bridge = ["assets/guest/*"]
+computer_use_vm = ["assets/guest/*"]

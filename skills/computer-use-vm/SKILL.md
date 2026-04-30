@@ -1,24 +1,24 @@
 ---
-name: codex-vm-computer
+name: computer-use-vm
 description: Let agents run disposable VMs for computer-use and GUI automation instead of controlling the host desktop.
 ---
 
-# Codex VM Computer
+# Computer Use VM
 
-Use `codex-vm-bridge` or this skill's `scripts/codex-vm-bridge` wrapper to control disposable macOS VMs.
+Use `computer-use-vm` or this skill's wrapper to control disposable VMs.
 
 ## Base Image Policy
 
 Each machine builds its own base locally. That keeps Apple software, privacy grants, user state, caches, and machine-specific data out of GitHub, npm, releases, and Hugging Face.
 
-If `codex-vm-computer-base` is missing, create it locally with the commands in this skill. If macOS privacy prompts appear inside the guest, ask the user to approve Screen Recording and Accessibility for the guest agent/helper.
+If `computer-use-vm-base` is missing, create it locally with the commands in this skill. If macOS privacy prompts appear inside the guest, ask the user to approve Screen Recording and Accessibility for the guest agent/helper.
 
 ## Default Workflow
 
 1. Run diagnostics:
 
 ```bash
-codex-vm-bridge diagnose
+computer-use-vm diagnose
 ```
 
 2. Prefer Tart for headless/background runs. Use UTM when an existing UTM VM is the target.
@@ -26,47 +26,47 @@ codex-vm-bridge diagnose
 3. Prefer the prepared base image:
 
 ```bash
-codex-vm-bridge clone codex-vm-computer-base <task-vm>
+computer-use-vm clone computer-use-vm-base <task-vm>
 ```
 
 This base has the guest agent installed as a user LaunchAgent and has the required macOS privacy grants for native screenshots.
 
-4. Prepare a raw Tart base image only if `codex-vm-computer-base` does not exist:
+4. Prepare a raw Tart base image only if `computer-use-vm-base` does not exist:
 
 ```bash
-codex-vm-bridge prepare-base codex-tahoe-base
-codex-vm-bridge clone codex-tahoe-base codex-vm-computer-base
-codex-vm-bridge start codex-vm-computer-base --vnc
-codex-vm-bridge install-agent codex-vm-computer-base
-codex-vm-bridge provision-dev-tools codex-vm-computer-base
-codex-vm-bridge stop codex-vm-computer-base
+computer-use-vm prepare-base computer-use-tahoe-base
+computer-use-vm clone computer-use-tahoe-base computer-use-vm-base
+computer-use-vm start computer-use-vm-base --vnc
+computer-use-vm install-agent computer-use-vm-base
+computer-use-vm provision-dev-tools computer-use-vm-base
+computer-use-vm stop computer-use-vm-base
 ```
 
 5. Use clone/delete isolation when a base image exists:
 
 ```bash
-codex-vm-bridge clone <base-vm> <task-vm>
-codex-vm-bridge start <task-vm> --mount "repo:$PWD:tag=repo"
-codex-vm-bridge ip <task-vm>
+computer-use-vm clone <base-vm> <task-vm>
+computer-use-vm start <task-vm> --mount "repo:$PWD:tag=repo"
+computer-use-vm ip <task-vm>
 ```
 
 For host workspace access, prefer Tart directory mounts over copying:
 
 ```bash
-codex-vm-bridge start <task-vm> --mount "repo:$PWD:tag=repo"
-codex-vm-bridge exec <task-vm> zsh -lc 'cd /Volumes/My\ Shared\ Files/repo && pwd && ls'
+computer-use-vm start <task-vm> --mount "repo:$PWD:tag=repo"
+computer-use-vm exec <task-vm> zsh -lc 'cd /Volumes/My\ Shared\ Files/repo && pwd && ls'
 ```
 
 macOS guests automount the shared directory under `/Volumes/My Shared Files/repo`. Use `push` only when a mount is unavailable or the VM is already running without the needed share:
 
 ```bash
-codex-vm-bridge push <task-vm> ./local-file-or-folder /Users/admin/local-file-or-folder
+computer-use-vm push <task-vm> ./local-file-or-folder /Users/admin/local-file-or-folder
 ```
 
 The prepared base should already have Homebrew, XcodeGen, Make, xcbeautify, and swiftformat. If a base is missing those tools, start it and run:
 
 ```bash
-codex-vm-bridge provision-dev-tools codex-vm-computer-base
+computer-use-vm provision-dev-tools computer-use-vm-base
 ```
 
 Full `xcodebuild` and SwiftLint require full `/Applications/Xcode.app`; Command Line Tools alone are not enough for those checks.
@@ -74,26 +74,26 @@ Full `xcodebuild` and SwiftLint require full `/Applications/Xcode.app`; Command 
 6. Install the guest agent only for raw or unprepared VMs:
 
 ```bash
-codex-vm-bridge install-agent <task-vm>
+computer-use-vm install-agent <task-vm>
 ```
 
 7. Start the agent inside the guest only for raw or unprepared VMs:
 
 ```bash
-codex-vm-bridge start-agent <task-vm>
+computer-use-vm start-agent <task-vm>
 ```
 
 8. Drive the VM through the agent:
 
 ```bash
-codex-vm-bridge agent ping --host <guest-ip>
-codex-vm-bridge agent screenshot --host <guest-ip> --output /tmp/vm.png
-codex-vm-bridge agent ax-tree --host <guest-ip> --depth 5 --max-children 80
-codex-vm-bridge agent ax-press --host <guest-ip> --id <element-id>
-codex-vm-bridge agent ax-click --host <guest-ip> --id <element-id>
-codex-vm-bridge agent ax-set-value --host <guest-ip> --id <element-id> --value "text"
-codex-vm-bridge agent click --host <guest-ip> --x 200 --y 180
-codex-vm-bridge agent type --host <guest-ip> --text "hello"
+computer-use-vm agent ping --host <guest-ip>
+computer-use-vm agent screenshot --host <guest-ip> --output /tmp/vm.png
+computer-use-vm agent ax-tree --host <guest-ip> --depth 5 --max-children 80
+computer-use-vm agent ax-press --host <guest-ip> --id <element-id>
+computer-use-vm agent ax-click --host <guest-ip> --id <element-id>
+computer-use-vm agent ax-set-value --host <guest-ip> --id <element-id> --value "text"
+computer-use-vm agent click --host <guest-ip> --x 200 --y 180
+computer-use-vm agent type --host <guest-ip> --text "hello"
 ```
 
 Prefer AX actions over coordinate actions when an element id is available. Use `ax-tree` first, choose an element by role/title/description/frame, then use `ax-press`, `ax-click`, or `ax-set-value` with the same depth/max-children parameters.
@@ -101,9 +101,9 @@ Prefer AX actions over coordinate actions when an element id is available. Use `
 If guest networking or macOS privacy permissions block direct screenshots, start the VM with `--vnc` and use the VNC fallback:
 
 ```bash
-codex-vm-bridge vnc screenshot --host <guest-ip> --output /tmp/vm.png
-codex-vm-bridge vnc click --host <guest-ip> --x 200 --y 180
-codex-vm-bridge vnc type --host <guest-ip> --text "hello"
+computer-use-vm vnc screenshot --host <guest-ip> --output /tmp/vm.png
+computer-use-vm vnc click --host <guest-ip> --x 200 --y 180
+computer-use-vm vnc type --host <guest-ip> --text "hello"
 ```
 
 9. Stop and delete task clones after use unless the user requested persistence.
@@ -120,7 +120,7 @@ codex-vm-bridge vnc type --host <guest-ip> --text "hello"
 Expose bridge tools over stdio with:
 
 ```bash
-codex-vm-bridge mcp
+computer-use-vm mcp
 ```
 
 Available tools include VM diagnostics, list, start with Tart mounts, stop, clone, delete, IP lookup, `vm_exec`, `vm_push`, guest-agent start/stop, and guest-agent snapshot/AX-tree/AX actions/click/type.

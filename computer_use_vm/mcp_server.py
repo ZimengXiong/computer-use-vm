@@ -15,12 +15,12 @@ def tool_schema() -> list[dict[str, Any]]:
         {"name": "vm_start", "description": "Start a VM in headless/hidden mode by default, or VNC/visible mode for screen introspection. Tart supports directory shares through mounts, passed directly to tart run --dir.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}, "visible": {"type": "boolean"}, "vnc": {"type": "boolean"}, "disposable": {"type": "boolean"}, "mounts": {"type": "array", "items": {"type": "string"}}}, "required": ["vm"]}},
         {"name": "vm_stop", "description": "Stop a VM.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}}, "required": ["vm"]}},
         {"name": "vm_clone", "description": "Clone a source VM to a named working VM.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "source": {"type": "string"}, "name": {"type": "string"}}, "required": ["source", "name"]}},
-        {"name": "vm_prepare_base", "description": "Clone the public Cirrus macOS Tahoe Tart base image into a local base VM.", "inputSchema": {"type": "object", "properties": {"name": {"type": "string", "default": "codex-tahoe-base"}, "image": {"type": "string", "default": "ghcr.io/cirruslabs/macos-tahoe-base:latest"}}}},
+        {"name": "vm_prepare_base", "description": "Clone the public Cirrus macOS Tahoe Tart base image into a local base VM.", "inputSchema": {"type": "object", "properties": {"name": {"type": "string", "default": "computer-use-tahoe-base"}, "image": {"type": "string", "default": "ghcr.io/cirruslabs/macos-tahoe-base:latest"}}}},
         {"name": "vm_delete", "description": "Delete a VM.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}}, "required": ["vm"]}},
         {"name": "vm_ip", "description": "Return known IP addresses for a VM.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}}, "required": ["vm"]}},
         {"name": "vm_exec", "description": "Run a terminal command inside a VM. Pass argv for direct execution, or command for a shell command run via zsh -lc.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}, "argv": {"type": "array", "items": {"type": "string"}}, "command": {"type": "string"}}, "required": ["vm"]}},
         {"name": "vm_push", "description": "Copy a host file or directory into a VM. Prefer Tart mounts on vm_start for large workspaces.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}, "local_path": {"type": "string"}, "remote_path": {"type": "string"}}, "required": ["vm", "local_path", "remote_path"]}},
-        {"name": "vm_start_agent", "description": "Start the installed in-guest HTTP computer-use agent.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}, "remote_dir": {"type": "string", "default": "/Users/admin/codex-vm-agent"}, "host": {"type": "string", "default": "0.0.0.0"}, "port": {"type": "integer", "default": 7042}}, "required": ["vm"]}},
+        {"name": "vm_start_agent", "description": "Start the installed in-guest HTTP computer-use agent.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}, "remote_dir": {"type": "string", "default": "/Users/admin/computer-use-vm-agent"}, "host": {"type": "string", "default": "0.0.0.0"}, "port": {"type": "integer", "default": 7042}}, "required": ["vm"]}},
         {"name": "vm_stop_agent", "description": "Stop the installed in-guest HTTP computer-use agent.", "inputSchema": {"type": "object", "properties": {"backend": {"type": "string", "enum": ["tart", "utm"]}, "vm": {"type": "string"}}, "required": ["vm"]}},
         {"name": "agent_snapshot", "description": "Return guest screen metadata and screenshot base64 from the in-guest agent.", "inputSchema": {"type": "object", "properties": {"host": {"type": "string"}, "port": {"type": "integer", "default": 7042}}, "required": ["host"]}},
         {"name": "agent_ax_tree", "description": "Return the focused guest app/window accessibility tree with element roles, labels, bounds, and actions.", "inputSchema": {"type": "object", "properties": {"host": {"type": "string"}, "port": {"type": "integer", "default": 7042}, "depth": {"type": "integer", "default": 5}, "max_children": {"type": "integer", "default": 80}}, "required": ["host"]}},
@@ -36,8 +36,8 @@ def start_guest_agent(vm: str, backend_name: str | None, remote_dir: str, host: 
     backend = get_backend(backend_name)
     cmd = (
         f"cd {remote_dir!r}; "
-        "nohup python3 codex_vm_guest_agent.py "
-        f"--host {host!r} --port {port} --helper ./codex-vm-guest-helper "
+        "nohup python3 computer_use_vm_guest_agent.py "
+        f"--host {host!r} --port {port} --helper ./computer-use-vm-guest-helper "
         "</dev/null >agent.log 2>&1 & printf '%s\\n' $!"
     )
     result = backend.exec(vm, ["sh", "-lc", cmd]).check()
@@ -46,7 +46,7 @@ def start_guest_agent(vm: str, backend_name: str | None, remote_dir: str, host: 
 
 def stop_guest_agent(vm: str, backend_name: str | None) -> dict[str, Any]:
     backend = get_backend(backend_name)
-    result = backend.exec(vm, ["sh", "-lc", "pkill -f codex_vm_guest_agent.py || true"]).check()
+    result = backend.exec(vm, ["sh", "-lc", "pkill -f computer_use_vm_guest_agent.py || true"]).check()
     return {"backend": backend.name, "vm": vm, "stopped": True, "stdout": result.stdout, "stderr": result.stderr}
 
 
@@ -63,7 +63,7 @@ def call_tool(name: str, args: dict[str, Any]) -> Any:
         return get_backend(args.get("backend")).clone(args["source"], args["name"])
     if name == "vm_prepare_base":
         tart = get_backend("tart")
-        return tart.clone_public_base(args.get("name", "codex-tahoe-base"), args.get("image", "ghcr.io/cirruslabs/macos-tahoe-base:latest"))  # type: ignore[attr-defined]
+        return tart.clone_public_base(args.get("name", "computer-use-tahoe-base"), args.get("image", "ghcr.io/cirruslabs/macos-tahoe-base:latest"))  # type: ignore[attr-defined]
     if name == "vm_delete":
         return get_backend(args.get("backend")).delete(args["vm"])
     if name == "vm_ip":
@@ -80,7 +80,7 @@ def call_tool(name: str, args: dict[str, Any]) -> Any:
     if name == "vm_push":
         return get_backend(args.get("backend")).push(args["vm"], args["local_path"], args["remote_path"])
     if name == "vm_start_agent":
-        return start_guest_agent(args["vm"], args.get("backend"), args.get("remote_dir", "/Users/admin/codex-vm-agent"), args.get("host", "0.0.0.0"), int(args.get("port", 7042)))
+        return start_guest_agent(args["vm"], args.get("backend"), args.get("remote_dir", "/Users/admin/computer-use-vm-agent"), args.get("host", "0.0.0.0"), int(args.get("port", 7042)))
     if name == "vm_stop_agent":
         return stop_guest_agent(args["vm"], args.get("backend"))
     if name == "agent_snapshot":
@@ -111,7 +111,7 @@ def respond(message_id: Any, result: Any = None, error: Exception | None = None)
 
 def serve_stdio() -> None:
     methods: dict[str, Callable[[dict[str, Any]], Any]] = {
-        "initialize": lambda params: {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}}, "serverInfo": {"name": "codex-vm-bridge", "version": "0.1.0"}},
+        "initialize": lambda params: {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}}, "serverInfo": {"name": "computer-use-vm", "version": "0.1.0"}},
         "tools/list": lambda params: {"tools": tool_schema()},
         "tools/call": lambda params: {"content": [{"type": "text", "text": json.dumps(call_tool(params["name"], params.get("arguments") or {}), indent=2)}]},
     }

@@ -16,8 +16,8 @@ from .mcp_server import serve_stdio
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-GUEST_AGENT = str(files("codex_vm_bridge").joinpath("assets", "guest", "codex_vm_guest_agent.py"))
-GUEST_HELPER = str(files("codex_vm_bridge").joinpath("assets", "guest", "CodexVMGuestHelper.swift"))
+GUEST_AGENT = str(files("computer_use_vm").joinpath("assets", "guest", "computer_use_vm_guest_agent.py"))
+GUEST_HELPER = str(files("computer_use_vm").joinpath("assets", "guest", "ComputerUseVMGuestHelper.swift"))
 VNCDO = os.path.join(ROOT, ".venv", "bin", "vncdo")
 
 
@@ -26,38 +26,38 @@ def emit(value: Any) -> None:
 
 
 def copy_skill() -> dict[str, Any]:
-    source = os.path.join(ROOT, "skills", "codex-vm-computer")
-    codex_home = os.environ.get("CODEX_HOME", os.path.join(os.path.expanduser("~"), ".codex"))
-    target = os.path.join(codex_home, "skills", "codex-vm-computer")
+    source = os.path.join(ROOT, "skills", "computer-use-vm")
+    skills_home = os.environ.get("SKILLS_HOME", os.path.join(os.path.expanduser("~"), ".agents"))
+    target = os.path.join(skills_home, "skills", "computer-use-vm")
     if not os.path.isdir(source):
         raise BridgeError(f"skill source not found: {source}")
     shutil.rmtree(target, ignore_errors=True)
     shutil.copytree(source, target, ignore=shutil.ignore_patterns(".DS_Store", "__pycache__", "*.pyc"))
-    wrapper = os.path.join(target, "scripts", "codex-vm-bridge")
+    wrapper = os.path.join(target, "scripts", "computer-use-vm")
     with open(wrapper, "r", encoding="utf-8") as handle:
         text = handle.read()
     with open(wrapper, "w", encoding="utf-8") as handle:
-        handle.write(text.replace("__CODEX_VM_BRIDGE_ROOT__", ROOT))
+        handle.write(text.replace("__COMPUTER_USE_VM_ROOT__", ROOT))
     os.chmod(wrapper, 0o755)
     return {
         "installed": True,
-        "skill": "codex-vm-computer",
+        "skill": "computer-use-vm",
         "target": target,
         "bridge_root": ROOT,
         "base_image_policy": "Each machine builds its own base locally. That keeps Apple software, privacy grants, user state, caches, and machine-specific data out of GitHub, npm, releases, and Hugging Face.",
         "next_steps": [
-            "codex-vm-bridge diagnose",
-            "codex-vm-bridge prepare-base codex-tahoe-base",
-            "codex-vm-bridge clone codex-tahoe-base codex-vm-computer-base",
-            "codex-vm-bridge start codex-vm-computer-base --vnc",
-            "codex-vm-bridge install-agent codex-vm-computer-base",
-            "codex-vm-bridge provision-dev-tools codex-vm-computer-base",
+            "computer-use-vm diagnose",
+            "computer-use-vm prepare-base computer-use-tahoe-base",
+            "computer-use-vm clone computer-use-tahoe-base computer-use-vm-base",
+            "computer-use-vm start computer-use-vm-base --vnc",
+            "computer-use-vm install-agent computer-use-vm-base",
+            "computer-use-vm provision-dev-tools computer-use-vm-base",
         ],
     }
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="codex-vm-bridge")
+    parser = argparse.ArgumentParser(prog="computer-use-vm")
     parser.add_argument("--backend", choices=["tart", "utm"], help="VM backend; default prefers Tart then UTM")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
@@ -86,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("name")
 
     p = sub.add_parser("prepare-base")
-    p.add_argument("name", nargs="?", default="codex-tahoe-base")
+    p.add_argument("name", nargs="?", default="computer-use-tahoe-base")
     p.add_argument("--image", default="ghcr.io/cirruslabs/macos-tahoe-base:latest")
 
     p = sub.add_parser("delete")
@@ -115,12 +115,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("install-agent")
     p.add_argument("--backend", choices=["tart", "utm"], help=argparse.SUPPRESS)
     p.add_argument("vm")
-    p.add_argument("--remote-dir", default="/Users/admin/codex-vm-agent")
+    p.add_argument("--remote-dir", default="/Users/admin/computer-use-vm-agent")
 
     p = sub.add_parser("start-agent")
     p.add_argument("--backend", choices=["tart", "utm"], help=argparse.SUPPRESS)
     p.add_argument("vm")
-    p.add_argument("--remote-dir", default="/Users/admin/codex-vm-agent")
+    p.add_argument("--remote-dir", default="/Users/admin/computer-use-vm-agent")
     p.add_argument("--host", default="0.0.0.0")
     p.add_argument("--port", type=int, default=7042)
 
@@ -178,21 +178,21 @@ def build_parser() -> argparse.ArgumentParser:
 def install_agent(vm: str, backend_name: str | None, remote_dir: str) -> dict[str, Any]:
     backend = get_backend(backend_name)
     backend.exec(vm, ["mkdir", "-p", remote_dir]).check()
-    backend.push(vm, GUEST_AGENT, f"{remote_dir}/codex_vm_guest_agent.py")
-    backend.push(vm, GUEST_HELPER, f"{remote_dir}/CodexVMGuestHelper.swift")
+    backend.push(vm, GUEST_AGENT, f"{remote_dir}/computer_use_vm_guest_agent.py")
+    backend.push(vm, GUEST_HELPER, f"{remote_dir}/ComputerUseVMGuestHelper.swift")
     compile_cmd = [
         "zsh",
         "-lc",
-        f"cd {remote_dir!r} && swiftc -O CodexVMGuestHelper.swift -o codex-vm-guest-helper && chmod +x codex-vm-guest-helper",
+        f"cd {remote_dir!r} && swiftc -O ComputerUseVMGuestHelper.swift -o computer-use-vm-guest-helper && chmod +x computer-use-vm-guest-helper",
     ]
     compile_result = backend.exec(vm, compile_cmd).check()
     return {
         "backend": backend.name,
         "vm": vm,
         "remote_dir": remote_dir,
-        "agent": f"{remote_dir}/codex_vm_guest_agent.py",
-        "helper": f"{remote_dir}/codex-vm-guest-helper",
-        "start_command": f"cd {remote_dir} && ./codex-vm-guest-helper permissions && python3 codex_vm_guest_agent.py --host 0.0.0.0 --port 7042 --helper ./codex-vm-guest-helper",
+        "agent": f"{remote_dir}/computer_use_vm_guest_agent.py",
+        "helper": f"{remote_dir}/computer-use-vm-guest-helper",
+        "start_command": f"cd {remote_dir} && ./computer-use-vm-guest-helper permissions && python3 computer_use_vm_guest_agent.py --host 0.0.0.0 --port 7042 --helper ./computer-use-vm-guest-helper",
         "compile_stdout": compile_result.stdout,
         "compile_stderr": compile_result.stderr,
     }
@@ -202,8 +202,8 @@ def start_agent(vm: str, backend_name: str | None, remote_dir: str, host: str, p
     backend = get_backend(backend_name)
     cmd = (
         f"cd {remote_dir!r}; "
-        "nohup python3 codex_vm_guest_agent.py "
-        f"--host {host!r} --port {port} --helper ./codex-vm-guest-helper "
+        "nohup python3 computer_use_vm_guest_agent.py "
+        f"--host {host!r} --port {port} --helper ./computer-use-vm-guest-helper "
         "</dev/null >agent.log 2>&1 & printf '%s\\n' $!"
     )
     result = backend.exec(vm, ["sh", "-lc", cmd]).check()
@@ -212,7 +212,7 @@ def start_agent(vm: str, backend_name: str | None, remote_dir: str, host: str, p
 
 def stop_agent(vm: str, backend_name: str | None) -> dict[str, Any]:
     backend = get_backend(backend_name)
-    result = backend.exec(vm, ["sh", "-lc", "pkill -f codex_vm_guest_agent.py || true"]).check()
+    result = backend.exec(vm, ["sh", "-lc", "pkill -f computer_use_vm_guest_agent.py || true"]).check()
     return {"backend": backend.name, "vm": vm, "stopped": True, "stdout": result.stdout, "stderr": result.stderr}
 
 
@@ -269,12 +269,12 @@ for tool in tools:
         except Exception as exc:
             item["version_error"] = str(exc)
     result[tool] = item
-print("CODEX_VM_TOOLS_JSON_START")
+print("COMPUTER_USE_VM_TOOLS_JSON_START")
 print(json.dumps(result, indent=2, sort_keys=True))
 PY
 """
     result = backend.exec(vm, ["zsh", "-lc", script]).check()
-    marker = "CODEX_VM_TOOLS_JSON_START\n"
+    marker = "COMPUTER_USE_VM_TOOLS_JSON_START\n"
     summary_text = result.stdout.split(marker, 1)[1] if marker in result.stdout else "{}"
     summary = json.loads(summary_text)
     return {"backend": backend.name, "vm": vm, "tools": summary, "stderr": result.stderr}
@@ -464,7 +464,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             parser.error(f"unknown command {args.cmd}")
     except Exception as exc:
-        print(f"codex-vm-bridge: {exc}", file=sys.stderr)
+        print(f"computer-use-vm: {exc}", file=sys.stderr)
         return 1
     return 0
 

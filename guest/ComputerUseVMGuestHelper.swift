@@ -58,7 +58,7 @@ func permissions() {
 }
 
 func screenshot() throws {
-    let path = NSTemporaryDirectory() + "/codex-vm-screenshot-\(UUID().uuidString).png"
+    let path = NSTemporaryDirectory() + "/computer-use-vm-screenshot-\(UUID().uuidString).png"
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
     proc.arguments = ["-x", "-t", "png", path]
@@ -360,7 +360,7 @@ func main() throws {
     var args = CommandLine.arguments
     _ = args.removeFirst()
     guard let command = args.first else {
-        throw HelperError.usage("usage: codex-vm-guest-helper permissions|screenshot|ax-tree [depth] [max-children]|ax-press ID [depth] [max-children]|ax-click ID [depth] [max-children]|ax-set-value ID VALUE [depth] [max-children]|click X Y [button]|type TEXT|key KEY [modifiers...]")
+        throw HelperError.usage("usage: computer-use-vm-guest-helper permissions|screenshot|ax-tree [depth] [max-children]|ax-press ID [depth] [max-children]|ax-click ID [depth] [max-children]|ax-set-value ID VALUE [depth] [max-children]|click X Y [button]|type TEXT|key KEY [modifiers...]")
     }
     args.removeFirst()
     switch command {

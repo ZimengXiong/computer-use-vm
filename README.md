@@ -2,104 +2,62 @@
 
 Let agents run disposable VMs.
 
-This is a small bridge for running macOS GUI and terminal work inside Tart or UTM VMs instead of letting an agent drive your host desktop. The normal flow is: clone a prepared local base VM, mount the current repo into it, run commands there, use the guest agent for screenshots/accessibility/clicks, then delete the clone.
+Computer Use VM gives coding agents a VM they can use for terminal and GUI work instead of touching your host desktop. Start a disposable VM, mount the current project, let the agent work inside it, then throw the VM away.
 
 It does not ship a macOS base image. Each machine builds its own base locally. That keeps Apple software, privacy grants, user state, caches, and machine-specific data out of GitHub, npm, releases, and Hugging Face.
 
-## Install The Skill
+## Install
 
-Use the open skills CLI:
+Install the skill with the open skills CLI:
 
 ```bash
-npx skills add ZimengXiong/codex-vm-bridge -a codex -g
+npx skills add ZimengXiong/computer-use-vm
 ```
 
-That installs `skills/codex-vm-computer`. The skill wrapper uses a local checkout when it has one, an installed `codex-vm-bridge` command when available, or `npx -y computer-use-vm` as a fallback.
-
-If you only want the package installer:
+Or install from npm:
 
 ```bash
 npx computer-use-vm add
 ```
 
-From a checkout, this also works:
+Install the VM backend you want to use separately. Tart is the recommended path on Apple Silicon Macs.
+
+## Use
+
+Build a local base once:
 
 ```bash
-npm run install-skill
+computer-use-vm diagnose
+computer-use-vm prepare-base
+computer-use-vm clone computer-use-tahoe-base computer-use-vm-base
+computer-use-vm start computer-use-vm-base --vnc
+computer-use-vm install-agent computer-use-vm-base
+computer-use-vm provision-dev-tools computer-use-vm-base
+computer-use-vm stop computer-use-vm-base
 ```
 
-You also need Tart on the host:
+For a task, clone the base and mount your repo:
 
 ```bash
-brew install cirruslabs/cli/tart
-```
-
-VNC fallback is optional:
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements-vnc.txt
-```
-
-## Build A Base
-
-Build the base once per machine:
-
-```bash
-codex-vm-bridge diagnose
-codex-vm-bridge prepare-base codex-tahoe-base
-codex-vm-bridge clone --backend tart codex-tahoe-base codex-vm-computer-base
-codex-vm-bridge start --backend tart codex-vm-computer-base --vnc
-codex-vm-bridge install-agent --backend tart codex-vm-computer-base
-codex-vm-bridge provision-dev-tools --backend tart codex-vm-computer-base
-codex-vm-bridge stop --backend tart codex-vm-computer-base
-```
-
-During that first VNC run, macOS may ask for Screen Recording and Accessibility permissions inside the guest. Approve those for the guest agent/helper. Normal userland code cannot silently grant them.
-
-`provision-dev-tools` installs Homebrew if needed, then XcodeGen, Make, xcbeautify, and swiftformat. Full `xcodebuild` and SwiftLint need full `/Applications/Xcode.app`; Command Line Tools alone are not enough.
-
-## Use It
-
-For a task, clone the base and mount your current repo:
-
-```bash
-codex-vm-bridge clone --backend tart codex-vm-computer-base task-vm
-codex-vm-bridge start --backend tart task-vm --vnc --mount "repo:$PWD:tag=repo"
-codex-vm-bridge ip --backend tart task-vm
-```
-
-The mounted repo shows up in the guest at `/Volumes/My Shared Files/repo`, so agents can run real terminal commands without copying the project:
-
-```bash
-codex-vm-bridge exec --backend tart task-vm zsh -lc 'cd /Volumes/My\ Shared\ Files/repo && xcodegen generate'
-```
-
-If a mount is not available, copy a file or folder:
-
-```bash
-codex-vm-bridge push --backend tart task-vm ./MyProject /Users/admin/MyProject
+computer-use-vm clone computer-use-vm-base task-vm
+computer-use-vm start task-vm --mount "repo:$PWD:tag=repo"
+computer-use-vm exec task-vm zsh -lc 'cd /Volumes/My\ Shared\ Files/repo && make test'
 ```
 
 For GUI work, use the guest agent:
 
 ```bash
-codex-vm-bridge agent screenshot --host <guest-ip> --output /tmp/vm.png
-codex-vm-bridge agent ax-tree --host <guest-ip>
-codex-vm-bridge agent ax-press --host <guest-ip> --id <element-id>
-codex-vm-bridge agent type --host <guest-ip> --text "hello"
+computer-use-vm agent screenshot --host <guest-ip> --output /tmp/vm.png
+computer-use-vm agent ax-tree --host <guest-ip>
+computer-use-vm agent type --host <guest-ip> --text "hello"
 ```
 
-Prefer accessibility actions when you can; use coordinate clicks and VNC as recovery tools.
+The skill gives agents the longer workflow details when they need them.
 
 ## MCP
 
-Run:
-
 ```bash
-codex-vm-bridge mcp
+computer-use-vm mcp
 ```
 
-The MCP server exposes VM lifecycle, `vm_exec`, `vm_push`, and the guest-agent screenshot/accessibility/input tools. See [examples/mcp.json](examples/mcp.json).
-
-UTM support exists for local VMs, but Tart is the main path for disposable macOS VM workflows.
+See [examples/mcp.json](examples/mcp.json).
