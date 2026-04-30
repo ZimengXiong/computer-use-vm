@@ -50,20 +50,49 @@ def make_handler(state: AgentState) -> type[BaseHTTPRequestHandler]:
                 return {"ok": True, "agent": "computer-use-vm-guest-agent"}
             if self.path == "/permissions":
                 return state.run_helper("permissions")
+            if self.path == "/list-apps":
+                return state.run_helper("list-apps")
+            if self.path == "/activate-app":
+                body = self.read_json()
+                return state.run_helper("activate-app", body["app"])
             if self.path == "/screenshot":
                 return state.run_helper("screenshot")
+            if self.path == "/state":
+                body = self.read_json()
+                args = [str(body.get("depth", 5)), str(body.get("max_children", 80))]
+                if body.get("app"):
+                    args.append(body["app"])
+                return state.run_helper("state", *args)
             if self.path.startswith("/ax-tree"):
                 body = self.read_json()
-                return state.run_helper("ax-tree", str(body.get("depth", 5)), str(body.get("max_children", 80)))
+                args = [str(body.get("depth", 5)), str(body.get("max_children", 80))]
+                if body.get("app"):
+                    args.append(body["app"])
+                return state.run_helper("ax-tree", *args)
             if self.path == "/ax-press":
                 body = self.read_json()
-                return state.run_helper("ax-press", str(body["id"]), str(body.get("depth", 5)), str(body.get("max_children", 80)))
+                args = [str(body["id"]), str(body.get("depth", 5)), str(body.get("max_children", 80))]
+                if body.get("app"):
+                    args.append(body["app"])
+                return state.run_helper("ax-press", *args)
             if self.path == "/ax-click":
                 body = self.read_json()
-                return state.run_helper("ax-click", str(body["id"]), str(body.get("depth", 5)), str(body.get("max_children", 80)))
+                args = [str(body["id"]), str(body.get("depth", 5)), str(body.get("max_children", 80))]
+                if body.get("app"):
+                    args.append(body["app"])
+                return state.run_helper("ax-click", *args)
             if self.path == "/ax-set-value":
                 body = self.read_json()
-                return state.run_helper("ax-set-value", str(body["id"]), body["value"], str(body.get("depth", 5)), str(body.get("max_children", 80)))
+                args = [str(body["id"]), body["value"], str(body.get("depth", 5)), str(body.get("max_children", 80))]
+                if body.get("app"):
+                    args.append(body["app"])
+                return state.run_helper("ax-set-value", *args)
+            if self.path == "/ax-action":
+                body = self.read_json()
+                args = [str(body["id"]), body["action"], str(body.get("depth", 5)), str(body.get("max_children", 80))]
+                if body.get("app"):
+                    args.append(body["app"])
+                return state.run_helper("ax-action", *args)
             if self.path == "/snapshot":
                 shot = state.run_helper("screenshot")
                 perms = state.run_helper("permissions")
@@ -71,7 +100,18 @@ def make_handler(state: AgentState) -> type[BaseHTTPRequestHandler]:
                 return {**shot, "permissions": perms, "ax_tree": ax_tree}
             if self.path == "/click":
                 body = self.read_json()
-                return state.run_helper("click", str(body["x"]), str(body["y"]), body.get("button", "left"))
+                return state.run_helper("click", str(body["x"]), str(body["y"]), body.get("button", "left"), str(body.get("click_count", 1)))
+            if self.path == "/drag":
+                body = self.read_json()
+                return state.run_helper("drag", str(body["from_x"]), str(body["from_y"]), str(body["to_x"]), str(body["to_y"]))
+            if self.path == "/scroll":
+                body = self.read_json()
+                if body.get("id") is not None:
+                    args = [str(body["id"]), str(body.get("depth", 5)), str(body.get("max_children", 80))]
+                    if body.get("app"):
+                        args.append(body["app"])
+                    state.run_helper("ax-click", *args)
+                return state.run_helper("scroll", body["direction"], str(body.get("pages", 1)))
             if self.path == "/type":
                 body = self.read_json()
                 return state.run_helper("type", body["text"])

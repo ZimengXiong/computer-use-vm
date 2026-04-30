@@ -9,6 +9,7 @@ if ! command -v tart >/dev/null 2>&1; then
   brew install cirruslabs/cli/tart
 fi
 
+rm -rf .venv
 python3 -m venv .venv
 .venv/bin/pip install -r requirements-vnc.txt
 

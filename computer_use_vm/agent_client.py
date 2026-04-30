@@ -30,20 +30,35 @@ class AgentClient:
     def ping(self) -> dict[str, Any]:
         return self._request("/ping")
 
-    def snapshot(self) -> dict[str, Any]:
-        return self._request("/snapshot")
+    def permissions(self) -> dict[str, Any]:
+        return self._request("/permissions")
 
-    def ax_tree(self, depth: int = 5, max_children: int = 80) -> dict[str, Any]:
-        return self._request("/ax-tree", {"depth": depth, "max_children": max_children})
+    def list_apps(self) -> dict[str, Any]:
+        return self._request("/list-apps")
 
-    def ax_press(self, element_id: int, depth: int = 5, max_children: int = 80) -> dict[str, Any]:
-        return self._request("/ax-press", {"id": element_id, "depth": depth, "max_children": max_children})
+    def activate_app(self, app: str) -> dict[str, Any]:
+        return self._request("/activate-app", {"app": app})
 
-    def ax_click(self, element_id: int, depth: int = 5, max_children: int = 80) -> dict[str, Any]:
-        return self._request("/ax-click", {"id": element_id, "depth": depth, "max_children": max_children})
+    def snapshot(self, app: str | None = None) -> dict[str, Any]:
+        return self._request("/snapshot" if app is None else "/state", {"app": app} if app else None)
 
-    def ax_set_value(self, element_id: int, value: str, depth: int = 5, max_children: int = 80) -> dict[str, Any]:
-        return self._request("/ax-set-value", {"id": element_id, "value": value, "depth": depth, "max_children": max_children})
+    def state(self, depth: int = 5, max_children: int = 80, app: str | None = None) -> dict[str, Any]:
+        return self._request("/state", {"depth": depth, "max_children": max_children, "app": app})
+
+    def ax_tree(self, depth: int = 5, max_children: int = 80, app: str | None = None) -> dict[str, Any]:
+        return self._request("/ax-tree", {"depth": depth, "max_children": max_children, "app": app})
+
+    def ax_press(self, element_id: int, depth: int = 5, max_children: int = 80, app: str | None = None) -> dict[str, Any]:
+        return self._request("/ax-press", {"id": element_id, "depth": depth, "max_children": max_children, "app": app})
+
+    def ax_click(self, element_id: int, depth: int = 5, max_children: int = 80, app: str | None = None) -> dict[str, Any]:
+        return self._request("/ax-click", {"id": element_id, "depth": depth, "max_children": max_children, "app": app})
+
+    def ax_set_value(self, element_id: int, value: str, depth: int = 5, max_children: int = 80, app: str | None = None) -> dict[str, Any]:
+        return self._request("/ax-set-value", {"id": element_id, "value": value, "depth": depth, "max_children": max_children, "app": app})
+
+    def ax_action(self, element_id: int, action: str, depth: int = 5, max_children: int = 80, app: str | None = None) -> dict[str, Any]:
+        return self._request("/ax-action", {"id": element_id, "action": action, "depth": depth, "max_children": max_children, "app": app})
 
     def screenshot(self, output: str | None = None) -> dict[str, Any]:
         result = self._request("/screenshot")
@@ -54,8 +69,14 @@ class AgentClient:
             result["output"] = output
         return result
 
-    def click(self, x: int, y: int, button: str = "left") -> dict[str, Any]:
-        return self._request("/click", {"x": x, "y": y, "button": button})
+    def click(self, x: int, y: int, button: str = "left", click_count: int = 1) -> dict[str, Any]:
+        return self._request("/click", {"x": x, "y": y, "button": button, "click_count": click_count})
+
+    def drag(self, from_x: int, from_y: int, to_x: int, to_y: int) -> dict[str, Any]:
+        return self._request("/drag", {"from_x": from_x, "from_y": from_y, "to_x": to_x, "to_y": to_y})
+
+    def scroll(self, direction: str, pages: float = 1, element_id: int | None = None, depth: int = 5, max_children: int = 80, app: str | None = None) -> dict[str, Any]:
+        return self._request("/scroll", {"direction": direction, "pages": pages, "id": element_id, "depth": depth, "max_children": max_children, "app": app})
 
     def type_text(self, text: str) -> dict[str, Any]:
         return self._request("/type", {"text": text})

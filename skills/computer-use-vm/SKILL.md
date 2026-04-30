@@ -39,10 +39,15 @@ Before running this setup, tell the user: "The first setup needs a VNC session i
 computer-use-vm prepare-base computer-use-tahoe-base
 computer-use-vm clone computer-use-tahoe-base computer-use-vm-base
 computer-use-vm start computer-use-vm-base --vnc
+computer-use-vm configure-guest computer-use-vm-base
 computer-use-vm install-agent computer-use-vm-base
+computer-use-vm start-agent computer-use-vm-base
+computer-use-vm verify-agent computer-use-vm-base
 computer-use-vm provision-dev-tools computer-use-vm-base
 computer-use-vm stop computer-use-vm-base
 ```
+
+`verify-agent` must report `ok: true`, `screen_capture_trusted: true`, and `accessibility_trusted: true` before treating a VM as a prepared base. If it does not, keep the VM running with `--vnc`, approve Screen Recording and Accessibility inside the guest for the computer-use VM helper/agent, then rerun `computer-use-vm start-agent <vm>` and `computer-use-vm verify-agent <vm>`. After verification succeeds, stop this VM and use it as the cloned base so future task VMs inherit the guest-side approvals.
 
 5. Use clone/delete isolation when a base image exists:
 
@@ -73,32 +78,42 @@ computer-use-vm provision-dev-tools computer-use-vm-base
 
 Full `xcodebuild` and SwiftLint require full `/Applications/Xcode.app`; Command Line Tools alone are not enough for those checks.
 
-6. Install the guest agent only for raw or unprepared VMs:
+6. Configure and install the guest agent only for raw or unprepared VMs:
 
 ```bash
+computer-use-vm configure-guest <task-vm>
 computer-use-vm install-agent <task-vm>
 ```
 
-7. Start the agent inside the guest only for raw or unprepared VMs:
+7. Start or restart the agent inside the guest only for raw or unprepared VMs:
 
 ```bash
 computer-use-vm start-agent <task-vm>
+computer-use-vm verify-agent <task-vm>
 ```
+
+Inside the VM, `configure-guest` reduces friction for agents by enabling passwordless sudo for the admin user, disabling sleep, and removing stale old agent services. `start-agent` may use any port; it creates a VM-internal autostart entry for that port. The host does not need additional accessibility or screen recording grants.
 
 8. Drive the VM through the agent:
 
 ```bash
 computer-use-vm agent ping --host <guest-ip>
+computer-use-vm agent list-apps --host <guest-ip>
+computer-use-vm agent state --host <guest-ip> --app Safari --depth 5 --max-children 80
 computer-use-vm agent screenshot --host <guest-ip> --output /tmp/vm.png
-computer-use-vm agent ax-tree --host <guest-ip> --depth 5 --max-children 80
-computer-use-vm agent ax-press --host <guest-ip> --id <element-id>
-computer-use-vm agent ax-click --host <guest-ip> --id <element-id>
-computer-use-vm agent ax-set-value --host <guest-ip> --id <element-id> --value "text"
-computer-use-vm agent click --host <guest-ip> --x 200 --y 180
+computer-use-vm agent ax-tree --host <guest-ip> --app Safari --depth 5 --max-children 80
+computer-use-vm agent ax-press --host <guest-ip> --app Safari --id <element-id>
+computer-use-vm agent ax-click --host <guest-ip> --app Safari --id <element-id>
+computer-use-vm agent ax-set-value --host <guest-ip> --app Safari --id <element-id> --value "text"
+computer-use-vm agent ax-action --host <guest-ip> --app Safari --id <element-id> --action-name AXShowMenu
+computer-use-vm agent click --host <guest-ip> --x 200 --y 180 --click-count 2
+computer-use-vm agent drag --host <guest-ip> --from-x 200 --from-y 180 --to-x 400 --to-y 180
+computer-use-vm agent scroll --host <guest-ip> --app Safari --id <element-id> --direction down --pages 1
 computer-use-vm agent type --host <guest-ip> --text "hello"
+computer-use-vm agent key --host <guest-ip> --key Return
 ```
 
-Prefer AX actions over coordinate actions when an element id is available. Use `ax-tree` first, choose an element by role/title/description/frame, then use `ax-press`, `ax-click`, or `ax-set-value` with the same depth/max-children parameters.
+Prefer `state --app <name-or-bundle-id>` as the native Computer Use style entry point: it returns a screenshot plus the target app/window accessibility tree. Use `list-apps` when the app name or bundle id is unknown. Prefer AX actions over coordinate actions when an element id is available. Use `state` or `ax-tree` first, choose an element by role/title/description/frame/actions, then use `ax-press`, `ax-click`, `ax-set-value`, `ax-action`, or `scroll` with the same app/depth/max-children parameters.
 
 If guest networking or macOS privacy permissions block direct screenshots, start the VM with `--vnc` and use the VNC fallback:
 
@@ -125,7 +140,7 @@ Expose bridge tools over stdio with:
 computer-use-vm mcp
 ```
 
-Available tools include VM diagnostics, list, start with Tart mounts, stop, clone, delete, IP lookup, `vm_exec`, `vm_push`, guest-agent start/stop, and guest-agent snapshot/AX-tree/AX actions/click/type.
+Available tools include VM diagnostics, list, start with Tart mounts, stop, clone, delete, IP lookup, `vm_exec`, `vm_push`, guest-agent start/stop, and guest-agent app state/list/activation, snapshot, AX-tree, AX actions, click, drag, scroll, type, and key input.
 
 ## Important Constraints
 

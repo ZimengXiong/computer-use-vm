@@ -19,6 +19,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 GUEST_AGENT = str(files("computer_use_vm").joinpath("assets", "guest", "computer_use_vm_guest_agent.py"))
 GUEST_HELPER = str(files("computer_use_vm").joinpath("assets", "guest", "ComputerUseVMGuestHelper.swift"))
 VNCDO = os.path.join(ROOT, ".venv", "bin", "vncdo")
+LAUNCH_AGENT_LABEL_PREFIX = "local.computer-use.vm-agent"
+LEGACY_LAUNCH_AGENT_LABELS = ["local.codex.vm-agent"]
 
 
 def emit(value: Any) -> None:
@@ -112,10 +114,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--backend", choices=["tart", "utm"], help=argparse.SUPPRESS)
     p.add_argument("vm")
 
+    p = sub.add_parser("configure-guest")
+    p.add_argument("--backend", choices=["tart", "utm"], help=argparse.SUPPRESS)
+    p.add_argument("vm")
+    p.add_argument("--admin-user", default="admin")
+
     p = sub.add_parser("install-agent")
     p.add_argument("--backend", choices=["tart", "utm"], help=argparse.SUPPRESS)
     p.add_argument("vm")
     p.add_argument("--remote-dir", default="/Users/admin/computer-use-vm-agent")
+    p.add_argument("--port", type=int, default=7042)
 
     p = sub.add_parser("start-agent")
     p.add_argument("--backend", choices=["tart", "utm"], help=argparse.SUPPRESS)
@@ -128,17 +136,32 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--backend", choices=["tart", "utm"], help=argparse.SUPPRESS)
     p.add_argument("vm")
 
+    p = sub.add_parser("verify-agent")
+    p.add_argument("--backend", choices=["tart", "utm"], help=argparse.SUPPRESS)
+    p.add_argument("vm")
+    p.add_argument("--port", type=int, default=7042)
+    p.add_argument("--host")
+
     p = sub.add_parser("agent")
-    p.add_argument("action", choices=["ping", "snapshot", "screenshot", "ax-tree", "ax-press", "ax-click", "ax-set-value", "click", "type", "key"])
+    p.add_argument("action", choices=["ping", "permissions", "list-apps", "activate-app", "state", "snapshot", "screenshot", "ax-tree", "ax-press", "ax-click", "ax-set-value", "ax-action", "click", "drag", "scroll", "type", "key"])
     p.add_argument("--host", required=True)
     p.add_argument("--port", type=int, default=7042)
     p.add_argument("--output")
     p.add_argument("--x", type=int)
     p.add_argument("--y", type=int)
     p.add_argument("--button", default="left")
+    p.add_argument("--click-count", type=int, default=1)
     p.add_argument("--text")
     p.add_argument("--key")
     p.add_argument("--modifier", action="append", default=[])
+    p.add_argument("--app")
+    p.add_argument("--action-name")
+    p.add_argument("--direction")
+    p.add_argument("--pages", type=float, default=1)
+    p.add_argument("--from-x", type=int)
+    p.add_argument("--from-y", type=int)
+    p.add_argument("--to-x", type=int)
+    p.add_argument("--to-y", type=int)
     p.add_argument("--depth", type=int, default=5)
     p.add_argument("--max-children", type=int, default=80)
     p.add_argument("--id", type=int)
@@ -159,15 +182,24 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("vm-agent")
     p.add_argument("--backend", choices=["tart", "utm"], help=argparse.SUPPRESS)
     p.add_argument("vm")
-    p.add_argument("action", choices=["ping", "snapshot", "screenshot", "ax-tree", "ax-press", "ax-click", "ax-set-value", "click", "type", "key"])
+    p.add_argument("action", choices=["ping", "permissions", "list-apps", "activate-app", "state", "snapshot", "screenshot", "ax-tree", "ax-press", "ax-click", "ax-set-value", "ax-action", "click", "drag", "scroll", "type", "key"])
     p.add_argument("--port", type=int, default=7042)
     p.add_argument("--output")
     p.add_argument("--x", type=int)
     p.add_argument("--y", type=int)
     p.add_argument("--button", default="left")
+    p.add_argument("--click-count", type=int, default=1)
     p.add_argument("--text")
     p.add_argument("--key")
     p.add_argument("--modifier", action="append", default=[])
+    p.add_argument("--app")
+    p.add_argument("--action-name")
+    p.add_argument("--direction")
+    p.add_argument("--pages", type=float, default=1)
+    p.add_argument("--from-x", type=int)
+    p.add_argument("--from-y", type=int)
+    p.add_argument("--to-x", type=int)
+    p.add_argument("--to-y", type=int)
     p.add_argument("--depth", type=int, default=5)
     p.add_argument("--max-children", type=int, default=80)
     p.add_argument("--id", type=int)
@@ -175,15 +207,71 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def install_agent(vm: str, backend_name: str | None, remote_dir: str) -> dict[str, Any]:
+def launch_agent_label(port: int) -> str:
+    return f"{LAUNCH_AGENT_LABEL_PREFIX}.{port}"
+
+
+def launch_agent_path(port: int) -> str:
+    return f"/Users/admin/Library/LaunchAgents/{launch_agent_label(port)}.plist"
+
+
+def launch_agent_plist(remote_dir: str, port: int) -> str:
+    label = launch_agent_label(port)
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>{label}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>{remote_dir}/computer_use_vm_guest_agent.py</string>
+    <string>--host</string>
+    <string>0.0.0.0</string>
+    <string>--port</string>
+    <string>{port}</string>
+    <string>--helper</string>
+    <string>{remote_dir}/computer-use-vm-guest-helper</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>{remote_dir}</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>{remote_dir}/agent.log</string>
+  <key>StandardErrorPath</key>
+  <string>{remote_dir}/agent.err.log</string>
+</dict>
+</plist>
+"""
+
+
+def install_agent(vm: str, backend_name: str | None, remote_dir: str, port: int = 7042) -> dict[str, Any]:
     backend = get_backend(backend_name)
     backend.exec(vm, ["mkdir", "-p", remote_dir]).check()
     backend.push(vm, GUEST_AGENT, f"{remote_dir}/computer_use_vm_guest_agent.py")
     backend.push(vm, GUEST_HELPER, f"{remote_dir}/ComputerUseVMGuestHelper.swift")
+    plist_local = None
+    try:
+        import tempfile
+
+        with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as handle:
+            plist_local = handle.name
+            handle.write(launch_agent_plist(remote_dir, port))
+        backend.push(vm, plist_local, launch_agent_path(port))
+    finally:
+        if plist_local:
+            try:
+                os.unlink(plist_local)
+            except OSError:
+                pass
     compile_cmd = [
         "zsh",
         "-lc",
-        f"cd {remote_dir!r} && swiftc -O ComputerUseVMGuestHelper.swift -o computer-use-vm-guest-helper && chmod +x computer-use-vm-guest-helper",
+        f"cd {remote_dir!r} && swiftc -O ComputerUseVMGuestHelper.swift -o computer-use-vm-guest-helper && chmod +x computer-use-vm-guest-helper computer_use_vm_guest_agent.py && chmod 644 {launch_agent_path(port)!r}",
     ]
     compile_result = backend.exec(vm, compile_cmd).check()
     return {
@@ -192,7 +280,9 @@ def install_agent(vm: str, backend_name: str | None, remote_dir: str) -> dict[st
         "remote_dir": remote_dir,
         "agent": f"{remote_dir}/computer_use_vm_guest_agent.py",
         "helper": f"{remote_dir}/computer-use-vm-guest-helper",
-        "start_command": f"cd {remote_dir} && ./computer-use-vm-guest-helper permissions && python3 computer_use_vm_guest_agent.py --host 0.0.0.0 --port 7042 --helper ./computer-use-vm-guest-helper",
+        "launch_agent": launch_agent_path(port),
+        "launch_agent_label": launch_agent_label(port),
+        "start_command": f"computer-use-vm start-agent {vm} --port {port}",
         "compile_stdout": compile_result.stdout,
         "compile_stderr": compile_result.stderr,
     }
@@ -200,20 +290,63 @@ def install_agent(vm: str, backend_name: str | None, remote_dir: str) -> dict[st
 
 def start_agent(vm: str, backend_name: str | None, remote_dir: str, host: str, port: int) -> dict[str, Any]:
     backend = get_backend(backend_name)
+    label = launch_agent_label(port)
+    path = launch_agent_path(port)
+    plist = launch_agent_plist(remote_dir, port).replace("'", "'\\''")
+    labels = " ".join([label, *LEGACY_LAUNCH_AGENT_LABELS])
     cmd = (
-        f"cd {remote_dir!r}; "
-        "nohup python3 computer_use_vm_guest_agent.py "
-        f"--host {host!r} --port {port} --helper ./computer-use-vm-guest-helper "
-        "</dev/null >agent.log 2>&1 & printf '%s\\n' $!"
+        "set -e; "
+        "uid=$(id -u); "
+        "mkdir -p /Users/admin/Library/LaunchAgents; "
+        f"printf '%s' '{plist}' > {path!r}; "
+        f"chmod 644 {path!r}; "
+        f"for label in {labels}; do launchctl bootout gui/$uid/$label >/dev/null 2>&1 || true; done; "
+        f"pids=$(lsof -tiTCP:{port} -sTCP:LISTEN 2>/dev/null || true); [ -n \"$pids\" ] && kill $pids >/dev/null 2>&1 || true; "
+        f"launchctl bootstrap gui/$uid {path!r} >/dev/null 2>&1 || true; "
+        f"launchctl kickstart -k gui/$uid/{label}; "
+        f"launchctl print gui/$uid/{label} >/dev/null"
     )
     result = backend.exec(vm, ["sh", "-lc", cmd]).check()
-    return {"backend": backend.name, "vm": vm, "pid": result.stdout.strip(), "host": host, "port": port, "log": f"{remote_dir}/agent.log"}
+    return {"backend": backend.name, "vm": vm, "started": True, "host": host, "port": port, "log": f"{remote_dir}/agent.log", "launch_agent": label, "stdout": result.stdout, "stderr": result.stderr}
 
 
 def stop_agent(vm: str, backend_name: str | None) -> dict[str, Any]:
     backend = get_backend(backend_name)
-    result = backend.exec(vm, ["sh", "-lc", "pkill -f computer_use_vm_guest_agent.py || true"]).check()
+    legacy = " ".join(LEGACY_LAUNCH_AGENT_LABELS)
+    cmd = (
+        "uid=$(id -u); "
+        f"for label in $(launchctl list | awk '/{LAUNCH_AGENT_LABEL_PREFIX}/ {{print $3}}') {legacy}; do "
+        "launchctl bootout gui/$uid/$label >/dev/null 2>&1 || true; "
+        "done; "
+        "pkill -f computer_use_vm_guest_agent.py || true"
+    )
+    result = backend.exec(vm, ["sh", "-lc", cmd]).check()
     return {"backend": backend.name, "vm": vm, "stopped": True, "stdout": result.stdout, "stderr": result.stderr}
+
+
+def configure_guest(vm: str, backend_name: str | None, admin_user: str) -> dict[str, Any]:
+    backend = get_backend(backend_name)
+    script = f"""
+set -euo pipefail
+admin_user={admin_user!r}
+sudo mkdir -p /etc/sudoers.d
+printf '%s\\n' "$admin_user ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/99-computer-use-vm >/dev/null
+sudo chmod 440 /etc/sudoers.d/99-computer-use-vm
+sudo visudo -cf /etc/sudoers.d/99-computer-use-vm >/dev/null
+sudo systemsetup -setsleep Never >/dev/null 2>&1 || true
+sudo systemsetup -setdisplaysleep Never >/dev/null 2>&1 || true
+sudo systemsetup -setcomputersleep Never >/dev/null 2>&1 || true
+defaults write com.apple.screensaver idleTime 0 || true
+mkdir -p "$HOME/Library/LaunchAgents" /Users/admin/computer-use-vm-agent
+for plist in "$HOME"/Library/LaunchAgents/local.codex.vm-agent.plist; do
+  [ -e "$plist" ] && rm -f "$plist"
+done
+uid=$(id -u)
+launchctl bootout gui/$uid/local.codex.vm-agent >/dev/null 2>&1 || true
+echo configured
+"""
+    result = backend.exec(vm, ["zsh", "-lc", script]).check()
+    return {"backend": backend.name, "vm": vm, "configured": True, "stdout": result.stdout, "stderr": result.stderr}
 
 
 def provision_dev_tools(vm: str, backend_name: str | None) -> dict[str, Any]:
@@ -280,32 +413,90 @@ PY
     return {"backend": backend.name, "vm": vm, "tools": summary, "stderr": result.stderr}
 
 
+def verify_agent(vm: str, backend_name: str | None, host: str | None, port: int) -> dict[str, Any]:
+    backend = get_backend(backend_name)
+    ips = [host] if host else backend.ip(vm)
+    if not ips:
+        raise BridgeError(f"no IP address found for VM {vm}")
+    errors = []
+    for ip in ips:
+        client = AgentClient(ip, port, timeout=10)
+        try:
+            ping = client.ping()
+            permissions = client.permissions()
+            screenshot = client.screenshot()
+            tree = client.ax_tree(depth=2, max_children=20)
+            return {
+                "backend": backend.name,
+                "vm": vm,
+                "host": ip,
+                "port": port,
+                "ok": True,
+                "ping": ping,
+                "permissions": permissions,
+                "screenshot": {k: v for k, v in screenshot.items() if k != "png_base64"},
+                "ax_tree": {"app": tree.get("app"), "node_count": tree.get("node_count")},
+            }
+        except Exception as exc:
+            errors.append({"host": ip, "error": str(exc)})
+    return {
+        "backend": backend.name,
+        "vm": vm,
+        "port": port,
+        "ok": False,
+        "errors": errors,
+        "next_step": "Start the VM with --vnc and approve Screen Recording and Accessibility for /Users/admin/computer-use-vm-agent/computer-use-vm-guest-helper, then rerun verify-agent.",
+    }
+
+
 def run_agent_command(args: argparse.Namespace) -> dict[str, Any]:
     client = AgentClient(args.host, args.port)
     if args.action == "ping":
         return client.ping()
+    if args.action == "permissions":
+        return client.permissions()
+    if args.action == "list-apps":
+        return client.list_apps()
+    if args.action == "activate-app":
+        if args.app is None:
+            raise BridgeError("agent activate-app requires --app")
+        return client.activate_app(args.app)
+    if args.action == "state":
+        return client.state(args.depth, args.max_children, args.app)
     if args.action == "snapshot":
-        return client.snapshot()
+        return client.snapshot(args.app)
     if args.action == "screenshot":
         return client.screenshot(args.output)
     if args.action == "ax-tree":
-        return client.ax_tree(args.depth, args.max_children)
+        return client.ax_tree(args.depth, args.max_children, args.app)
     if args.action == "ax-press":
         if args.id is None:
             raise BridgeError("agent ax-press requires --id")
-        return client.ax_press(args.id, args.depth, args.max_children)
+        return client.ax_press(args.id, args.depth, args.max_children, args.app)
     if args.action == "ax-click":
         if args.id is None:
             raise BridgeError("agent ax-click requires --id")
-        return client.ax_click(args.id, args.depth, args.max_children)
+        return client.ax_click(args.id, args.depth, args.max_children, args.app)
     if args.action == "ax-set-value":
         if args.id is None or args.value is None:
             raise BridgeError("agent ax-set-value requires --id and --value")
-        return client.ax_set_value(args.id, args.value, args.depth, args.max_children)
+        return client.ax_set_value(args.id, args.value, args.depth, args.max_children, args.app)
+    if args.action == "ax-action":
+        if args.id is None or args.action_name is None:
+            raise BridgeError("agent ax-action requires --id and --action-name")
+        return client.ax_action(args.id, args.action_name, args.depth, args.max_children, args.app)
     if args.action == "click":
         if args.x is None or args.y is None:
             raise BridgeError("agent click requires --x and --y")
-        return client.click(args.x, args.y, args.button)
+        return client.click(args.x, args.y, args.button, args.click_count)
+    if args.action == "drag":
+        if args.from_x is None or args.from_y is None or args.to_x is None or args.to_y is None:
+            raise BridgeError("agent drag requires --from-x --from-y --to-x --to-y")
+        return client.drag(args.from_x, args.from_y, args.to_x, args.to_y)
+    if args.action == "scroll":
+        if args.direction is None:
+            raise BridgeError("agent scroll requires --direction")
+        return client.scroll(args.direction, args.pages, args.id, args.depth, args.max_children, args.app)
     if args.action == "type":
         if args.text is None:
             raise BridgeError("agent type requires --text")
@@ -320,30 +511,54 @@ def run_agent_command(args: argparse.Namespace) -> dict[str, Any]:
 def run_vm_agent_command(args: argparse.Namespace) -> dict[str, Any]:
     payload: dict[str, Any] = {}
     path = f"/{args.action}"
-    if args.action == "screenshot":
+    if args.action in {"ping", "permissions", "list-apps", "screenshot"}:
+        path = f"/{args.action}"
+    elif args.action == "activate-app":
+        if args.app is None:
+            raise BridgeError("vm-agent activate-app requires --app")
+        payload = {"app": args.app}
+    elif args.action == "state":
+        payload = {"depth": args.depth, "max_children": args.max_children, "app": args.app}
+    elif args.action == "snapshot":
+        if args.app:
+            path = "/state"
+            payload = {"depth": args.depth, "max_children": args.max_children, "app": args.app}
+    elif args.action == "screenshot":
         path = "/screenshot"
     elif args.action == "ax-tree":
         path = "/ax-tree"
-        payload = {"depth": args.depth, "max_children": args.max_children}
+        payload = {"depth": args.depth, "max_children": args.max_children, "app": args.app}
     elif args.action == "ax-press":
         if args.id is None:
             raise BridgeError("vm-agent ax-press requires --id")
         path = "/ax-press"
-        payload = {"id": args.id, "depth": args.depth, "max_children": args.max_children}
+        payload = {"id": args.id, "depth": args.depth, "max_children": args.max_children, "app": args.app}
     elif args.action == "ax-click":
         if args.id is None:
             raise BridgeError("vm-agent ax-click requires --id")
         path = "/ax-click"
-        payload = {"id": args.id, "depth": args.depth, "max_children": args.max_children}
+        payload = {"id": args.id, "depth": args.depth, "max_children": args.max_children, "app": args.app}
     elif args.action == "ax-set-value":
         if args.id is None or args.value is None:
             raise BridgeError("vm-agent ax-set-value requires --id and --value")
         path = "/ax-set-value"
-        payload = {"id": args.id, "value": args.value, "depth": args.depth, "max_children": args.max_children}
+        payload = {"id": args.id, "value": args.value, "depth": args.depth, "max_children": args.max_children, "app": args.app}
+    elif args.action == "ax-action":
+        if args.id is None or args.action_name is None:
+            raise BridgeError("vm-agent ax-action requires --id and --action-name")
+        payload = {"id": args.id, "action": args.action_name, "depth": args.depth, "max_children": args.max_children, "app": args.app}
     elif args.action == "click":
         if args.x is None or args.y is None:
             raise BridgeError("vm-agent click requires --x and --y")
-        payload = {"x": args.x, "y": args.y, "button": args.button}
+        payload = {"x": args.x, "y": args.y, "button": args.button, "click_count": args.click_count}
+    elif args.action == "drag":
+        if args.from_x is None or args.from_y is None or args.to_x is None or args.to_y is None:
+            raise BridgeError("vm-agent drag requires --from-x --from-y --to-x --to-y")
+        payload = {"from_x": args.from_x, "from_y": args.from_y, "to_x": args.to_x, "to_y": args.to_y}
+    elif args.action == "scroll":
+        if args.direction is None:
+            raise BridgeError("vm-agent scroll requires --direction")
+        payload = {"direction": args.direction, "pages": args.pages, "id": args.id, "depth": args.depth, "max_children": args.max_children, "app": args.app}
     elif args.action == "type":
         if args.text is None:
             raise BridgeError("vm-agent type requires --text")
@@ -378,6 +593,14 @@ print(urllib.request.urlopen(req, timeout=60).read().decode())
 
 
 def run_vnc_command(args: argparse.Namespace) -> dict[str, Any]:
+    needs_vnc_install = not os.path.exists(VNCDO)
+    if not needs_vnc_install:
+        probe = subprocess.run([VNCDO, "--help"], text=True, capture_output=True, timeout=30)
+        needs_vnc_install = probe.returncode != 0
+    if needs_vnc_install:
+        shutil.rmtree(os.path.join(ROOT, ".venv"), ignore_errors=True)
+        subprocess.run([sys.executable, "-m", "venv", os.path.join(ROOT, ".venv")], check=True)
+        subprocess.run([os.path.join(ROOT, ".venv", "bin", "python"), "-m", "pip", "install", "-r", os.path.join(ROOT, "requirements-vnc.txt")], check=True)
     if not os.path.exists(VNCDO):
         raise BridgeError(f"vncdotool is not installed at {VNCDO}; run: python3 -m venv {ROOT}/.venv && {ROOT}/.venv/bin/pip install vncdotool")
     base = [VNCDO, "-s", args.host, "-u", args.user, "-p", args.password, "--timeout", "30"]
@@ -449,12 +672,16 @@ def main(argv: list[str] | None = None) -> int:
             emit(backend.push(args.vm, args.local_path, args.remote_path))
         elif args.cmd == "provision-dev-tools":
             emit(provision_dev_tools(args.vm, args.backend))
+        elif args.cmd == "configure-guest":
+            emit(configure_guest(args.vm, args.backend, args.admin_user))
         elif args.cmd == "install-agent":
-            emit(install_agent(args.vm, args.backend, args.remote_dir))
+            emit(install_agent(args.vm, args.backend, args.remote_dir, args.port))
         elif args.cmd == "start-agent":
             emit(start_agent(args.vm, args.backend, args.remote_dir, args.host, args.port))
         elif args.cmd == "stop-agent":
             emit(stop_agent(args.vm, args.backend))
+        elif args.cmd == "verify-agent":
+            emit(verify_agent(args.vm, args.backend, args.host, args.port))
         elif args.cmd == "agent":
             emit(run_agent_command(args))
         elif args.cmd == "vnc":

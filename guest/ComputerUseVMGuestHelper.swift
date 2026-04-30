@@ -11,6 +11,7 @@ enum HelperError: Error, CustomStringConvertible {
     case unsupportedKey(String)
     case accessibilityUnavailable
     case elementNotFound(Int)
+    case appNotFound(String)
 
     var description: String {
         switch self {
@@ -21,6 +22,7 @@ enum HelperError: Error, CustomStringConvertible {
         case .unsupportedKey(let key): return "unsupported key: \(key)"
         case .accessibilityUnavailable: return "accessibility unavailable"
         case .elementNotFound(let id): return "element not found: \(id)"
+        case .appNotFound(let query): return "app not found: \(query)"
         }
     }
 }
@@ -41,6 +43,11 @@ func intArg(_ value: String) throws -> Int {
     return number
 }
 
+func doubleArg(_ value: String) throws -> Double {
+    guard let number = Double(value) else { throw HelperError.invalidNumber(value) }
+    return number
+}
+
 func permissions() {
     let axOptions = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
     let axTrusted = AXIsProcessTrustedWithOptions(axOptions)
@@ -57,7 +64,7 @@ func permissions() {
     ])
 }
 
-func screenshot() throws {
+func screenshotPayload() throws -> [String: Any] {
     let path = NSTemporaryDirectory() + "/computer-use-vm-screenshot-\(UUID().uuidString).png"
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
@@ -72,12 +79,32 @@ func screenshot() throws {
     let size = image?.size ?? .zero
     try? FileManager.default.removeItem(atPath: path)
     let encoded = data.base64EncodedString()
-    printJSON([
-        ("width", "\(Int(size.width))"),
-        ("height", "\(Int(size.height))"),
-        ("scale", "1"),
-        ("png_base64", "\"\(encoded)\"")
-    ])
+    return ["width": Int(size.width), "height": Int(size.height), "scale": 1, "png_base64": encoded]
+}
+
+func screenshot() throws {
+    let data = try JSONSerialization.data(withJSONObject: screenshotPayload(), options: [])
+    print(String(data: data, encoding: .utf8)!)
+}
+
+func axTreePayload(maxDepth: Int, maxChildren: Int, appQuery: String? = nil) throws -> [String: Any] {
+    let (app, roots) = try axRoots(appQuery: appQuery)
+    var counter = 0
+    let tree = roots.prefix(maxChildren).map { root in
+        axNode(root, depth: 0, maxDepth: maxDepth, maxChildren: maxChildren, counter: &counter)
+    }
+    return [
+        "app": [
+            "localized_name": app.localizedName ?? "",
+            "bundle_identifier": app.bundleIdentifier ?? "",
+            "pid": app.processIdentifier,
+            "active": app.isActive
+        ],
+        "max_depth": maxDepth,
+        "max_children": maxChildren,
+        "node_count": counter,
+        "tree": tree
+    ]
 }
 
 func axString(_ element: AXUIElement, _ attribute: CFString) -> String? {
@@ -181,12 +208,57 @@ func axNode(_ element: AXUIElement, depth: Int, maxDepth: Int, maxChildren: Int,
     return node
 }
 
-func axRoots() throws -> (NSRunningApplication, [AXUIElement]) {
+func appPayload(_ app: NSRunningApplication) -> [String: Any] {
+    return [
+        "localized_name": app.localizedName ?? "",
+        "bundle_identifier": app.bundleIdentifier ?? "",
+        "pid": app.processIdentifier,
+        "active": app.isActive,
+        "hidden": app.isHidden,
+        "terminated": app.isTerminated
+    ]
+}
+
+func listApps() throws {
+    let apps = NSWorkspace.shared.runningApplications
+        .filter { $0.activationPolicy == .regular || $0.localizedName != nil || $0.bundleIdentifier != nil }
+        .map { appPayload($0) }
+    let data = try JSONSerialization.data(withJSONObject: ["apps": apps], options: [])
+    print(String(data: data, encoding: .utf8)!)
+}
+
+func matchingApp(_ query: String) -> NSRunningApplication? {
+    let normalized = query.lowercased()
+    return NSWorkspace.shared.runningApplications.first { app in
+        app.bundleIdentifier?.lowercased() == normalized ||
+        app.localizedName?.lowercased() == normalized ||
+        app.localizedName?.lowercased().contains(normalized) == true
+    }
+}
+
+func activateApp(_ query: String) throws {
+    guard let app = matchingApp(query) else { throw HelperError.appNotFound(query) }
+    app.activate(options: [.activateAllWindows])
+    usleep(200_000)
+    let data = try JSONSerialization.data(withJSONObject: ["ok": true, "app": appPayload(app)], options: [])
+    print(String(data: data, encoding: .utf8)!)
+}
+
+func axRoots(appQuery: String? = nil) throws -> (NSRunningApplication, [AXUIElement]) {
     guard AXIsProcessTrusted() else {
         throw HelperError.accessibilityUnavailable
     }
-    guard let app = NSWorkspace.shared.frontmostApplication else {
-        throw HelperError.accessibilityUnavailable
+    let app: NSRunningApplication
+    if let appQuery, !appQuery.isEmpty {
+        guard let found = matchingApp(appQuery) else { throw HelperError.appNotFound(appQuery) }
+        found.activate(options: [.activateAllWindows])
+        usleep(200_000)
+        app = found
+    } else {
+        guard let frontmost = NSWorkspace.shared.frontmostApplication else {
+            throw HelperError.accessibilityUnavailable
+        }
+        app = frontmost
     }
     let appElement = AXUIElementCreateApplication(app.processIdentifier)
     var windowsRef: CFTypeRef?
@@ -203,23 +275,8 @@ func axRoots() throws -> (NSRunningApplication, [AXUIElement]) {
     return (app, roots)
 }
 
-func axTree(maxDepth: Int, maxChildren: Int) throws {
-    let (app, roots) = try axRoots()
-    var counter = 0
-    let tree = roots.prefix(maxChildren).map { root in
-        axNode(root, depth: 0, maxDepth: maxDepth, maxChildren: maxChildren, counter: &counter)
-    }
-    let payload: [String: Any] = [
-        "app": [
-            "localized_name": app.localizedName ?? "",
-            "bundle_identifier": app.bundleIdentifier ?? "",
-            "pid": app.processIdentifier
-        ],
-        "max_depth": maxDepth,
-        "max_children": maxChildren,
-        "node_count": counter,
-        "tree": tree
-    ]
+func axTree(maxDepth: Int, maxChildren: Int, appQuery: String? = nil) throws {
+    let payload = try axTreePayload(maxDepth: maxDepth, maxChildren: maxChildren, appQuery: appQuery)
     let data = try JSONSerialization.data(withJSONObject: payload, options: [])
     print(String(data: data, encoding: .utf8)!)
 }
@@ -240,8 +297,8 @@ func axFind(_ element: AXUIElement, target: Int, depth: Int, maxDepth: Int, maxC
     return nil
 }
 
-func axElement(id: Int, maxDepth: Int, maxChildren: Int) throws -> AXUIElement {
-    let (_, roots) = try axRoots()
+func axElement(id: Int, maxDepth: Int, maxChildren: Int, appQuery: String? = nil) throws -> AXUIElement {
+    let (_, roots) = try axRoots(appQuery: appQuery)
     var counter = 0
     for root in roots.prefix(maxChildren) {
         if let found = axFind(root, target: id, depth: 0, maxDepth: maxDepth, maxChildren: maxChildren, counter: &counter) {
@@ -251,8 +308,8 @@ func axElement(id: Int, maxDepth: Int, maxChildren: Int) throws -> AXUIElement {
     throw HelperError.elementNotFound(id)
 }
 
-func axPress(id: Int, maxDepth: Int, maxChildren: Int) throws {
-    let element = try axElement(id: id, maxDepth: maxDepth, maxChildren: maxChildren)
+func axPress(id: Int, maxDepth: Int, maxChildren: Int, appQuery: String? = nil) throws {
+    let element = try axElement(id: id, maxDepth: maxDepth, maxChildren: maxChildren, appQuery: appQuery)
     let result = AXUIElementPerformAction(element, kAXPressAction as CFString)
     if result != .success {
         if let frame = axFrame(element) {
@@ -264,23 +321,33 @@ func axPress(id: Int, maxDepth: Int, maxChildren: Int) throws {
     printJSON([("ok", "true"), ("action", "\"AXPress\""), ("id", "\(id)")])
 }
 
-func axClick(id: Int, maxDepth: Int, maxChildren: Int) throws {
-    let element = try axElement(id: id, maxDepth: maxDepth, maxChildren: maxChildren)
+func axClick(id: Int, maxDepth: Int, maxChildren: Int, appQuery: String? = nil) throws {
+    let element = try axElement(id: id, maxDepth: maxDepth, maxChildren: maxChildren, appQuery: appQuery)
     guard let frame = axFrame(element) else {
         throw HelperError.elementNotFound(id)
     }
     click(x: Int(frame["x"]! + frame["width"]! / 2.0), y: Int(frame["y"]! + frame["height"]! / 2.0), buttonName: "left")
 }
 
-func axSetValue(id: Int, value: String, maxDepth: Int, maxChildren: Int) throws {
-    let element = try axElement(id: id, maxDepth: maxDepth, maxChildren: maxChildren)
+func axSetValue(id: Int, value: String, maxDepth: Int, maxChildren: Int, appQuery: String? = nil) throws {
+    let element = try axElement(id: id, maxDepth: maxDepth, maxChildren: maxChildren, appQuery: appQuery)
     let result = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, value as CFTypeRef)
     if result != .success {
-        try axClick(id: id, maxDepth: maxDepth, maxChildren: maxChildren)
+        try axClick(id: id, maxDepth: maxDepth, maxChildren: maxChildren, appQuery: appQuery)
         try typeText(value)
         return
     }
     printJSON([("ok", "true"), ("action", "\"AXSetValue\""), ("id", "\(id)")])
+}
+
+func axAction(id: Int, action: String, maxDepth: Int, maxChildren: Int, appQuery: String? = nil) throws {
+    let element = try axElement(id: id, maxDepth: maxDepth, maxChildren: maxChildren, appQuery: appQuery)
+    let result = AXUIElementPerformAction(element, action as CFString)
+    if result != .success {
+        throw HelperError.accessibilityUnavailable
+    }
+    let data = try JSONSerialization.data(withJSONObject: ["ok": true, "action": action, "id": id], options: [])
+    print(String(data: data, encoding: .utf8)!)
 }
 
 func postMouseMove(x: Int, y: Int) {
@@ -288,16 +355,59 @@ func postMouseMove(x: Int, y: Int) {
     CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
 }
 
-func click(x: Int, y: Int, buttonName: String) {
+func click(x: Int, y: Int, buttonName: String, clickCount: Int = 1) {
     let point = CGPoint(x: x, y: y)
     let button: CGMouseButton = buttonName == "right" ? .right : (buttonName == "middle" ? .center : .left)
     let downType: CGEventType = button == .right ? .rightMouseDown : (button == .center ? .otherMouseDown : .leftMouseDown)
     let upType: CGEventType = button == .right ? .rightMouseUp : (button == .center ? .otherMouseUp : .leftMouseUp)
     postMouseMove(x: x, y: y)
     usleep(20_000)
-    CGEvent(mouseEventSource: nil, mouseType: downType, mouseCursorPosition: point, mouseButton: button)?.post(tap: .cghidEventTap)
-    usleep(30_000)
-    CGEvent(mouseEventSource: nil, mouseType: upType, mouseCursorPosition: point, mouseButton: button)?.post(tap: .cghidEventTap)
+    for index in 1...max(1, clickCount) {
+        let down = CGEvent(mouseEventSource: nil, mouseType: downType, mouseCursorPosition: point, mouseButton: button)
+        down?.setIntegerValueField(.mouseEventClickState, value: Int64(index))
+        down?.post(tap: .cghidEventTap)
+        usleep(30_000)
+        let up = CGEvent(mouseEventSource: nil, mouseType: upType, mouseCursorPosition: point, mouseButton: button)
+        up?.setIntegerValueField(.mouseEventClickState, value: Int64(index))
+        up?.post(tap: .cghidEventTap)
+        usleep(80_000)
+    }
+    printJSON([("ok", "true")])
+}
+
+func drag(fromX: Int, fromY: Int, toX: Int, toY: Int) {
+    let from = CGPoint(x: fromX, y: fromY)
+    let to = CGPoint(x: toX, y: toY)
+    postMouseMove(x: fromX, y: fromY)
+    usleep(50_000)
+    CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: from, mouseButton: .left)?.post(tap: .cghidEventTap)
+    let steps = 12
+    for step in 1...steps {
+        let progress = CGFloat(step) / CGFloat(steps)
+        let point = CGPoint(x: from.x + (to.x - from.x) * progress, y: from.y + (to.y - from.y) * progress)
+        CGEvent(mouseEventSource: nil, mouseType: .leftMouseDragged, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
+        usleep(20_000)
+    }
+    CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: to, mouseButton: .left)?.post(tap: .cghidEventTap)
+    printJSON([("ok", "true")])
+}
+
+func scroll(direction: String, pages: Double) throws {
+    let units = Int32(max(1.0, abs(pages) * 8.0))
+    let sign: Int32
+    let vertical: Bool
+    switch direction.lowercased() {
+    case "up": sign = 1; vertical = true
+    case "down": sign = -1; vertical = true
+    case "left": sign = 1; vertical = false
+    case "right": sign = -1; vertical = false
+    default: throw HelperError.usage("scroll direction must be up, down, left, or right")
+    }
+    if vertical {
+        CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: sign * units, wheel2: 0, wheel3: 0)?.post(tap: .cghidEventTap)
+    } else {
+        CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 2, wheel1: 0, wheel2: sign * units, wheel3: 0)?.post(tap: .cghidEventTap)
+    }
     printJSON([("ok", "true")])
 }
 
@@ -366,30 +476,61 @@ func main() throws {
     switch command {
     case "permissions":
         permissions()
+    case "list-apps":
+        try listApps()
+    case "activate-app":
+        guard let app = args.first else { throw HelperError.usage("activate-app requires APP") }
+        try activateApp(app)
     case "screenshot":
         try screenshot()
+    case "state":
+        let depth = args.count >= 1 ? try intArg(args[0]) : 5
+        let maxChildren = args.count >= 2 ? try intArg(args[1]) : 80
+        let appQuery = args.count >= 3 ? args[2] : nil
+        let shot = try screenshotPayload()
+        let tree = try axTreePayload(maxDepth: max(1, depth), maxChildren: max(1, maxChildren), appQuery: appQuery)
+        let payload: [String: Any] = ["screenshot": shot, "ax_tree": tree]
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [])
+        print(String(data: data, encoding: .utf8)!)
     case "ax-tree":
         let depth = args.count >= 1 ? try intArg(args[0]) : 5
         let maxChildren = args.count >= 2 ? try intArg(args[1]) : 80
-        try axTree(maxDepth: max(1, depth), maxChildren: max(1, maxChildren))
+        let appQuery = args.count >= 3 ? args[2] : nil
+        try axTree(maxDepth: max(1, depth), maxChildren: max(1, maxChildren), appQuery: appQuery)
     case "ax-press":
         guard args.count >= 1 else { throw HelperError.usage("ax-press requires ID [depth] [max-children]") }
         let depth = args.count >= 2 ? try intArg(args[1]) : 5
         let maxChildren = args.count >= 3 ? try intArg(args[2]) : 80
-        try axPress(id: try intArg(args[0]), maxDepth: max(1, depth), maxChildren: max(1, maxChildren))
+        let appQuery = args.count >= 4 ? args[3] : nil
+        try axPress(id: try intArg(args[0]), maxDepth: max(1, depth), maxChildren: max(1, maxChildren), appQuery: appQuery)
     case "ax-click":
         guard args.count >= 1 else { throw HelperError.usage("ax-click requires ID [depth] [max-children]") }
         let depth = args.count >= 2 ? try intArg(args[1]) : 5
         let maxChildren = args.count >= 3 ? try intArg(args[2]) : 80
-        try axClick(id: try intArg(args[0]), maxDepth: max(1, depth), maxChildren: max(1, maxChildren))
+        let appQuery = args.count >= 4 ? args[3] : nil
+        try axClick(id: try intArg(args[0]), maxDepth: max(1, depth), maxChildren: max(1, maxChildren), appQuery: appQuery)
     case "ax-set-value":
         guard args.count >= 2 else { throw HelperError.usage("ax-set-value requires ID VALUE [depth] [max-children]") }
         let depth = args.count >= 3 ? try intArg(args[2]) : 5
         let maxChildren = args.count >= 4 ? try intArg(args[3]) : 80
-        try axSetValue(id: try intArg(args[0]), value: args[1], maxDepth: max(1, depth), maxChildren: max(1, maxChildren))
+        let appQuery = args.count >= 5 ? args[4] : nil
+        try axSetValue(id: try intArg(args[0]), value: args[1], maxDepth: max(1, depth), maxChildren: max(1, maxChildren), appQuery: appQuery)
+    case "ax-action":
+        guard args.count >= 2 else { throw HelperError.usage("ax-action requires ID ACTION [depth] [max-children] [app]") }
+        let depth = args.count >= 3 ? try intArg(args[2]) : 5
+        let maxChildren = args.count >= 4 ? try intArg(args[3]) : 80
+        let appQuery = args.count >= 5 ? args[4] : nil
+        try axAction(id: try intArg(args[0]), action: args[1], maxDepth: max(1, depth), maxChildren: max(1, maxChildren), appQuery: appQuery)
     case "click":
         guard args.count >= 2 else { throw HelperError.usage("click requires X Y [button]") }
-        click(x: try intArg(args[0]), y: try intArg(args[1]), buttonName: args.count >= 3 ? args[2] : "left")
+        let clickCount = args.count >= 4 ? try intArg(args[3]) : 1
+        click(x: try intArg(args[0]), y: try intArg(args[1]), buttonName: args.count >= 3 ? args[2] : "left", clickCount: clickCount)
+    case "drag":
+        guard args.count >= 4 else { throw HelperError.usage("drag requires FROM_X FROM_Y TO_X TO_Y") }
+        drag(fromX: try intArg(args[0]), fromY: try intArg(args[1]), toX: try intArg(args[2]), toY: try intArg(args[3]))
+    case "scroll":
+        guard let direction = args.first else { throw HelperError.usage("scroll requires DIRECTION [pages]") }
+        try scroll(direction: direction, pages: args.count >= 2 ? try doubleArg(args[1]) : 1.0)
     case "type":
         guard let text = args.first else { throw HelperError.usage("type requires TEXT") }
         try typeText(text)
