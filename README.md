@@ -10,6 +10,14 @@ It does not ship a macOS base image. Each machine builds its own base locally.
 
 Follow [INSTALL.md](INSTALL.md) to install the skill and do first-time setup.
 
+## Let Your Agent Install It
+
+Copy this into your agent:
+
+```md
+Read https://raw.githubusercontent.com/ZimengXiong/computer-use-vm/main/INSTALL.md and follow it to install Computer Use VM. During first-time setup, tell me when I need to VNC into the VM to approve macOS Screen Recording and Accessibility permissions.
+```
+
 ## Use
 
 Build a local base once:
