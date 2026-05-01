@@ -1,7 +1,9 @@
 # Computer Use VM
 
-Let agents run disposable VMs.
-<img width="1706" height="922" alt="screnshot" src="https://github.com/user-attachments/assets/64746afc-22a9-4948-ab27-e6080b8955cd" />
+Let agents run disposable, headless macOS VMs.
+
+Here's codex in a verification loop debugging my obsidian terminal extension, all without interrupting my user space:
+<img width="1848" height="5983" alt="image" src="https://github.com/user-attachments/assets/b3914155-ba99-4815-bb35-630208199eb0" />
 
 
 Computer Use VM gives coding agents a VM they can use for terminal and GUI work instead of touching your host desktop. Start a disposable VM, mount the current project, let the agent work inside it, then throw the VM away.
