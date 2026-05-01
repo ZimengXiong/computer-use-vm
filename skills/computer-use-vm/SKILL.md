@@ -125,7 +125,7 @@ computer-use-vm vnc click --host <guest-ip> --x 200 --y 180
 computer-use-vm vnc type --host <guest-ip> --text "hello"
 ```
 
-9. Stop and delete task clones after use unless the user requested persistence.
+9. After each task-use, stop the task VM and **ask the user whether they want to keep it or delete it**. If they do not request persistence, delete the VM by default.
 
 ## Modes
 
