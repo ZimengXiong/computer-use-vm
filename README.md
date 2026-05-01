@@ -1,6 +1,6 @@
 # Computer Use VM
 
-Let agents run disposable, headless macOS VMs.
+Let agents run disposable, headless macOS VMs. No more window switching and having to accomdate another 'person' using your computer.
 
 Here's codex in a verification loop debugging my obsidian terminal extension, all without interrupting my user space:
 <img width="1848" height="5983" alt="image" src="https://github.com/user-attachments/assets/b3914155-ba99-4815-bb35-630208199eb0" />
